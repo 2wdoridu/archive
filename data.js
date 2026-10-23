@@ -1,5 +1,8 @@
-// 시안용 게시물 데이터. Collected 이미지는 메트로폴리탄 미술관 Open Access(퍼블릭 도메인).
+// 시안용 게시물 데이터. Collected 이미지는 메트로폴리탄·게티 미술관의 퍼블릭 도메인(CC0) 이미지다.
+// 커스텀 이미지는 시안용 자리표시다.
 const MET = "https://images.metmuseum.org/CRDImages/ep/web-large/";
+const MET_DP = "https://images.metmuseum.org/CRDImages/dp/web-large/";
+const GETTY = "https://media.getty.edu/iiif/image/20afcc0d-d5cd-43e9-88c1-ba36486b7700/";
 const SOURCE = "메트로폴리탄 미술관";
 
 // 자리표시 이미지용 SVG
@@ -53,40 +56,41 @@ function design(base, forms = []) {
 }
 
 const POSTS = [
+  { id: "pentecost", type: "collected", title: "오순절", date: "1030–1040년경", medium: "양피지에 템페라, 금박, 잉크",
+    artist: "작자 미상(레겐스부르크)", source: "게티 미술관", license: "CC0",
+    sourceUrl: "https://www.getty.edu/art/collection/object/103S5G",
+    img: GETTY + "full/800,/0/default.jpg", imgFull: GETTY + "full/2000,/0/default.jpg", customs: ["field-of-irises"] },
   ...design({ id: "field-of-irises", type: "custom", title: "붓꽃 들판", date: "2026.10", medium: "디지털, 재채색",
-    img: MET + "DP346474.jpg", tone: "tone-blue", color: "#6f95dd", originals: ["irises", "wheat-field"] }, ["머그", "포스터"]),
-  { id: "harvesters", type: "collected", title: "곡물 수확", date: "1565", medium: "목판에 유채",
-    artist: "피터르 브뤼헐(아버지)", source: SOURCE, license: "CC0", img: MET + "DP119115.jpg", customs: ["harvest-blue"] },
+    img: MET + "DP346474.jpg", tone: "tone-blue", color: "#6f95dd", originals: ["pentecost", "christmas-1874"] }, ["머그", "포스터"]),
+  { id: "last-supper", type: "collected", title: "최후의 만찬", date: "15세기", medium: "채색 목판화",
+    artist: "작자 미상(15세기 독일)", source: SOURCE, license: "CC0",
+    sourceUrl: "https://www.metmuseum.org/art/collection/search/382397",
+    img: MET_DP + "DP813487.jpg", customs: ["irises-night", "harvest-blue"] },
   ...design({ id: "noon-plane", type: "work", title: "정오의 면", date: "2026.09", medium: "디지털", color: "#c8402c",
     img: workSvg(800, 1000, '<rect width="800" height="1000" fill="#e9e4d8"/><rect x="120" y="140" width="560" height="420" fill="#1d1d1b"/><circle cx="560" cy="700" r="150" fill="#c8402c"/>') }, ["액자", "티셔츠"]),
-  { id: "irises", type: "collected", title: "붓꽃", date: "1890", medium: "캔버스에 유채",
-    artist: "빈센트 반 고흐", source: SOURCE, license: "CC0", img: MET + "DP346474.jpg", customs: ["field-of-irises", "irises-night"] },
-  { id: "soap-bubbles", type: "collected", title: "비눗방울", date: "1733–34년경", medium: "캔버스에 유채",
-    artist: "장 시메옹 샤르댕", source: SOURCE, license: "CC0", img: MET + "DP356133.jpg", customs: ["bubbles-again"] },
+  { id: "tortilla-vendor", type: "collected", title: "머리에 쟁반을 인 토르티야 장수", date: "1848년경", medium: "수채",
+    artist: "판초 피에로", source: SOURCE, license: "CC0",
+    sourceUrl: "https://www.metmuseum.org/art/collection/search/819254",
+    img: MET_DP + "DP883531.jpg", customs: ["bubbles-again"] },
   ...design({ id: "irises-night", type: "custom", title: "밤의 붓꽃", date: "2026.09", medium: "디지털, 재채색",
-    img: MET + "DP346474.jpg", tone: "tone-night", color: "#cdb98a", originals: ["irises"] }, ["머그"]),
-  { id: "wheat-field", type: "collected", title: "사이프러스가 있는 밀밭", date: "1889", medium: "캔버스에 유채",
-    artist: "빈센트 반 고흐", source: SOURCE, license: "CC0", img: MET + "DP-42549-001.jpg", customs: ["field-of-irises"] },
+    img: MET + "DP346474.jpg", tone: "tone-night", color: "#cdb98a", originals: ["last-supper"] }, ["머그"]),
+  { id: "christmas-1874", type: "collected", title: "크리스마스", date: "1874", medium: "흰 카드에 크로모리소그래피",
+    artist: "작자 미상", source: SOURCE, license: "CC0",
+    sourceUrl: "https://www.metmuseum.org/art/collection/search/768558",
+    img: MET_DP + "DP885938.jpg", customs: ["field-of-irises"] },
   ...design({ id: "two-stones", type: "work", title: "두 개의 돌", date: "2026.08", medium: "디지털", color: "#2b2b28",
     img: workSvg(900, 600, '<rect width="900" height="600" fill="#d9dccf"/><ellipse cx="330" cy="330" rx="190" ry="150" fill="#2b2b28"/><ellipse cx="610" cy="370" rx="120" ry="95" fill="#8a8578"/>') }),
-  { id: "still-life", type: "collected", title: "사과와 앵초 화분이 있는 정물", date: "1890년경", medium: "캔버스에 유채",
-    artist: "폴 세잔", source: SOURCE, license: "CC0", img: MET + "DT47.jpg" },
-  { id: "horse-fair", type: "collected", title: "말 시장", date: "1852–55", medium: "캔버스에 유채",
-    artist: "로자 보뇌르", source: SOURCE, license: "CC0", img: MET + "DP-23550-001.jpg" },
+  // 잡지 이름이 상표일 수 있어 굿즈·커스텀 원작으로 연결하지 않는다(_notes/image-usage-cautions.md)
+  { id: "harpers-christmas", type: "collected", title: "하퍼스 매거진 크리스마스호", date: "1898", medium: "컬러 석판화",
+    artist: "하비 엘리스", source: SOURCE, license: "CC0",
+    sourceUrl: "https://www.metmuseum.org/art/collection/search/339102",
+    img: MET_DP + "DP864602.jpg" },
   ...design({ id: "bubbles-again", type: "custom", title: "다시, 비눗방울", date: "2026.08", medium: "디지털, 재채색",
-    img: MET + "DP356133.jpg", tone: "tone-rose", color: "#b05a8c", originals: ["soap-bubbles"] }, ["액자"]),
-  { id: "piazza", type: "collected", title: "산 마르코 광장", date: "1720년대 후반", medium: "캔버스에 유채",
-    artist: "카날레토", source: SOURCE, license: "CC0", img: MET + "DP-14286-009.jpg" },
+    img: MET + "DP356133.jpg", tone: "tone-rose", color: "#b05a8c", originals: ["tortilla-vendor"] }, ["액자"]),
   ...design({ id: "window-study", type: "work", title: "창 연구", date: "2026.07", medium: "디지털", color: "#3d5a80",
     img: workSvg(700, 1000, '<rect width="700" height="1000" fill="#f0eee8"/><rect x="90" y="90" width="520" height="820" fill="none" stroke="#1d1d1b" stroke-width="18"/><rect x="90" y="500" width="520" height="410" fill="#3d5a80"/>') }, ["포스터"]),
-  { id: "card-players", type: "collected", title: "카드놀이 하는 사람들", date: "1890–92", medium: "캔버스에 유채",
-    artist: "폴 세잔", source: SOURCE, license: "CC0", img: MET + "DP231550.jpg" },
-  { id: "parrot", type: "collected", title: "앵무새와 여인", date: "1866", medium: "캔버스에 유채",
-    artist: "귀스타브 쿠르베", source: SOURCE, license: "CC0", img: MET + "DP-17680-001.jpg" },
   ...design({ id: "harvest-blue", type: "custom", title: "푸른 수확", date: "2026.07", medium: "디지털, 재채색",
-    img: MET + "DP119115.jpg", tone: "tone-blue", color: "#6f95dd", originals: ["harvesters"] }, ["포스터"]),
-  { id: "hagar", type: "collected", title: "광야의 하갈", date: "1835", medium: "캔버스에 유채",
-    artist: "카미유 코로", source: SOURCE, license: "CC0", img: MET + "DT2013.jpg" },
+    img: MET + "DP119115.jpg", tone: "tone-blue", color: "#6f95dd", originals: ["last-supper"] }, ["포스터"]),
   ...design({ id: "half-moon", type: "work", title: "반달", date: "2026.06", medium: "디지털", color: "#1d1d1b",
     img: workSvg(800, 800, '<rect width="800" height="800" fill="#1d1d1b"/><path d="M400 180a220 220 0 0 1 0 440z" fill="#efe9dc"/>') }, ["머그"]),
 ];

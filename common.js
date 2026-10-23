@@ -103,7 +103,7 @@ function renderDetail(p) {
   const related = [["원작", p.originals], ["커스텀", p.customs]].filter(([, ids]) => ids?.length)
     .map(([name, ids]) => `<section class="related"><h2 class="related__title">${name}</h2>${cards(ids)}</section>`).join("");
 
-  const full = { ...p, img: p.img.replace("/web-large/", "/original/") };
+  const full = { ...p, img: p.imgFull || p.img.replace("/web-large/", "/original/") };
   // 수집 이미지의 출처·라이선스는 이미지 영역 우상단 ? 버튼의 툴팁으로 보여 준다
   const credit = p.type === "collected" ? `
       <button type="button" class="credit" aria-describedby="credit-tip">?
