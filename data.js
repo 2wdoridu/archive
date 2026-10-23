@@ -1,8 +1,9 @@
-// 시안용 게시물 데이터. Collected 이미지는 메트로폴리탄·게티 미술관의 퍼블릭 도메인(CC0) 이미지다.
+// 시안용 게시물 데이터. Collected 이미지는 메트로폴리탄·게티·레이크스 미술관의 퍼블릭 도메인 이미지다.
 // 커스텀 이미지는 시안용 자리표시다.
 const MET = "https://images.metmuseum.org/CRDImages/ep/web-large/";
 const MET_DP = "https://images.metmuseum.org/CRDImages/dp/web-large/";
 const GETTY = "https://media.getty.edu/iiif/image/20afcc0d-d5cd-43e9-88c1-ba36486b7700/";
+const RIJKS = "https://iiif.micr.io/";
 const SOURCE = "메트로폴리탄 미술관";
 
 // 자리표시 이미지용 SVG
@@ -56,18 +57,30 @@ function design(base, forms = []) {
 }
 
 const POSTS = [
+  { id: "gazette-bon-ton", type: "collected", title: "경이로운 나무, 아이들의 크리스마스 의상", date: "1914", medium: "석판화, 스텐실 손채색",
+    artist: "샤를 마르탱", sourceUrl: "https://www.rijksmuseum.nl/en/collection/object/Gazette-du-Bon-Ton-1914-No-1-Pl-III-LArbre-Merveilleux-Costumes-denfants-pour-Noel--715df1a6ef636ab30d1d6921a4bfc438",
+    source: "레이크스 미술관", license: "퍼블릭 도메인",
+    img: RIJKS + "dDUHw/full/800,/0/default.jpg", imgFull: RIJKS + "dDUHw/full/2000,/0/default.jpg" },
   { id: "pentecost", type: "collected", title: "오순절", date: "1030–1040년경", medium: "양피지에 템페라, 금박, 잉크",
     artist: "작자 미상(레겐스부르크)", source: "게티 미술관", license: "CC0",
     sourceUrl: "https://www.getty.edu/art/collection/object/103S5G",
     img: GETTY + "full/800,/0/default.jpg", imgFull: GETTY + "full/2000,/0/default.jpg", customs: ["field-of-irises"] },
   ...design({ id: "field-of-irises", type: "custom", title: "붓꽃 들판", date: "2026.10", medium: "디지털, 재채색",
     img: MET + "DP346474.jpg", tone: "tone-blue", color: "#6f95dd", originals: ["pentecost", "christmas-1874"] }, ["머그", "포스터"]),
+  { id: "christmas-card-1950", type: "collected", title: "1950–1951년 성탄·신년 카드", date: "1950", medium: "인쇄 카드",
+    artist: "작자 미상", sourceUrl: "https://www.rijksmuseum.nl/en/collection/object/Kerst-en-nieuwjaarswens-voor-1950-1951-van-Irene-en-Alfred-Brod--bf56bfb60a14d042443465e24c6488eb",
+    source: "레이크스 미술관", license: "퍼블릭 도메인",
+    img: RIJKS + "vuNPF/full/800,/0/default.jpg", imgFull: RIJKS + "vuNPF/full/2000,/0/default.jpg" },
   { id: "last-supper", type: "collected", title: "최후의 만찬", date: "15세기", medium: "채색 목판화",
     artist: "작자 미상(15세기 독일)", source: SOURCE, license: "CC0",
     sourceUrl: "https://www.metmuseum.org/art/collection/search/382397",
     img: MET_DP + "DP813487.jpg", customs: ["irises-night", "harvest-blue"] },
   ...design({ id: "noon-plane", type: "work", title: "정오의 면", date: "2026.09", medium: "디지털", color: "#c8402c",
     img: workSvg(800, 1000, '<rect width="800" height="1000" fill="#e9e4d8"/><rect x="120" y="140" width="560" height="420" fill="#1d1d1b"/><circle cx="560" cy="700" r="150" fill="#c8402c"/>') }, ["액자", "티셔츠"]),
+  { id: "sweets-print", type: "collected", title: "여러 가지 과자와 맛있는 것들", date: "1848–1881", medium: "판화",
+    artist: "루트키 & 크라넨뷔르흐 출판", sourceUrl: "https://www.rijksmuseum.nl/en/collection/object/Van-velerlei-gebak-en-ook-van-lekkernij-Is-deze-prent-voorzien-wat-uwe-keus-ook-zij-Beschouw-dus-lieve-jeugd-haar-steeds-tot-uw-vermaak-En-kies-er-alles-uit-dat-is-naar-uwen-smaak--05a50e4563ec840861bcc6527a621426",
+    source: "레이크스 미술관", license: "퍼블릭 도메인",
+    img: RIJKS + "LxtaB/full/800,/0/default.jpg", imgFull: RIJKS + "LxtaB/full/2000,/0/default.jpg" },
   { id: "tortilla-vendor", type: "collected", title: "머리에 쟁반을 인 토르티야 장수", date: "1848년경", medium: "수채",
     artist: "판초 피에로", source: SOURCE, license: "CC0",
     sourceUrl: "https://www.metmuseum.org/art/collection/search/819254",
