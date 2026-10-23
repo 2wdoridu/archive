@@ -13,7 +13,6 @@ function imgTag(p, alt = "") {
   const style = p.tone ? ` style="filter:url(#${p.tone})"` : "";
   return `<img src="${p.img}" alt="${alt}" loading="lazy"${style}>`;
 }
-const isMine = p => p.type !== "collected";
 const year = d => (d.match(/\d{4}/) || [d])[0];
 
 // 원작은 작가, 커스텀은 제작일을 캡션 둘째 줄에 쓴다

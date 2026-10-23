@@ -86,10 +86,6 @@ img { display: block; width: 100%; height: auto; }
   background: var(--rule);
 }
 .tile[hidden] { display: none; }
-.tile__mark {
-  position: absolute; top: 9px; right: 9px;
-  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
-}
 .tile__cap {
   position: absolute; left: 8px; bottom: 8px; padding: 2px 6px;
   background: var(--bg); color: var(--ink); font-size: 12px;
@@ -100,7 +96,8 @@ img { display: block; width: 100%; height: auto; }
 }
 
 /* 상세: 화면 크기와 관계없이 이미지 아래에 정보를 둔다 */
-.detail { padding: 24px var(--detail-side) 0; }
+/* 상세 페이지 본문은 최대 1440px 열에 가운데 정렬한다(1920px 화면에서 좌우 240px) */
+.detail { max-width: calc(1440px + var(--detail-side) * 2); margin: 0 auto; padding: 24px var(--detail-side) 0; }
 .detail__media { position: relative; display: flex; justify-content: center; }
 .detail__frame { max-width: 100%; }
 .detail__media img { width: auto; max-width: 100%; max-height: calc(100vh - 120px); border-radius: var(--radius); }
@@ -142,7 +139,8 @@ img { display: block; width: 100%; height: auto; }
 .credit__tip span:nth-child(odd) { color: #a9a9a4; }
 .credit:hover, .credit:focus-visible { background: var(--ink); color: #fff; }
 .credit:hover .credit__tip, .credit:focus .credit__tip { opacity: 1; visibility: visible; }
-.detail__side { max-width: 640px; margin-top: 28px; }
+.detail__side { margin-top: 28px; }
+.info { max-width: 640px; }
 .detail__title {
   font-family: var(--sans); font-stretch: 75%; font-weight: 700;
   font-size: 34px; line-height: 1.1; margin-bottom: 22px;
@@ -199,8 +197,18 @@ a.chip:hover { border-color: var(--ink); color: var(--ink); }
 
 .pager {
   display: flex; justify-content: space-between;
-  margin: 56px var(--detail-side) 0; padding: 16px 0 48px; border-top: 1px solid var(--rule);
+  width: calc(100% - var(--detail-side) * 2); max-width: 1440px;
+  margin: 56px auto 0; padding: 16px 0 48px; border-top: 1px solid var(--rule);
 }
+
+/* 상세 페이지 닫기: 상단 바 아래에 고정되어 스크롤해도 보인다 */
+.detail__bar {
+  position: sticky; top: 44px; z-index: 5;
+  max-width: calc(1440px + var(--detail-side) * 2); margin: 0 auto;
+  display: flex; justify-content: flex-end; padding: 8px var(--detail-side) 0;
+  pointer-events: none;
+}
+.detail__bar .pill { pointer-events: auto; background: var(--bg); }
 
 @media (max-width: 1100px) { :root { --detail-side: 40px; } }
 @media (max-width: 760px) {

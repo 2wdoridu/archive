@@ -34,7 +34,6 @@ const tiles = POSTS.map(p => {
   const a = document.createElement("a");
   a.className = "tile"; a.href = `detail.html?id=${p.id}`; a.dataset.id = p.id; a.dataset.goods = isGoods(p) ? p.form : "";
   a.innerHTML = `${imgTag(p, p.title)}
-    ${isMine(p) ? '<span class="tile__mark" aria-label="내 작품"></span>' : ""}
     <span class="tile__cap">${p.title}, ${year(p.date)}</span>`;
   return a;
 });
