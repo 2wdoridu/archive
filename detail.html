@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>붓꽃 들판 — Archive</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <a class="bar__name" href="index.html">Archive</a>
+  <nav class="bar__links">
+    <a href="https://www.instagram.com/" target="_blank" rel="noopener">@instagram_handle</a>
+    <a href="info.html">정보</a>
+  </nav>
+</header>
+
+<main id="post"></main>
+<nav class="pager"></nav>
+
+<script src="data.js"></script>
+<script src="common.js"></script>
+<script>
+// 시안: ?id=게시물 식별자로 게시물을 고른다
+const post = byId[new URLSearchParams(location.search).get("id")] || byId["field-of-irises"];
+document.title = `${post.title} — Archive`;
+document.getElementById("post").innerHTML = renderDetail(post);
+initGalleries(document.getElementById("post"));
+
+const i = POSTS.indexOf(post);
+const prev = POSTS[i - 1], next = POSTS[i + 1];
+document.querySelector(".pager").innerHTML =
+  (prev ? `<a class="pill" href="detail.html?id=${prev.id}">← 이전</a>` : "<span></span>") +
+  (next ? `<a class="pill" href="detail.html?id=${next.id}">다음 →</a>` : "");
+</script>
+</body>
+</html>
