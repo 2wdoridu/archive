@@ -35,7 +35,14 @@ img { display: block; width: 100%; height: auto; }
   transition: opacity .2s;
 }
 .bar__name[data-hidden="true"] { opacity: 0; pointer-events: none; }
-.bar__links { display: flex; gap: 20px; }
+.bar__links { display: flex; align-items: center; gap: 20px; }
+/* 상세 페이지 닫기: 상단 바 오른쪽 끝, 화면 오른쪽 위에 항상 같은 자리 */
+.bar__close {
+  font: inherit; font-size: 12px; color: var(--ink); background: none; cursor: pointer;
+  padding: 4px 12px; border: 1px solid var(--ink); border-radius: 999px;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.bar__close:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .bar__links a:hover, .bar__links a[aria-current="page"] { color: var(--accent); }
 
 /* 홈 머리 부분: 사이트 이름을 화면 폭에 맞춘다 */
@@ -200,15 +207,6 @@ a.chip:hover { border-color: var(--ink); color: var(--ink); }
   width: calc(100% - var(--detail-side) * 2); max-width: 1440px;
   margin: 56px auto 0; padding: 16px 0 48px; border-top: 1px solid var(--rule);
 }
-
-/* 상세 페이지 닫기: 상단 바 아래에 고정되어 스크롤해도 보인다 */
-.detail__bar {
-  position: sticky; top: 44px; z-index: 5;
-  max-width: calc(1440px + var(--detail-side) * 2); margin: 0 auto;
-  display: flex; justify-content: flex-end; padding: 8px var(--detail-side) 0;
-  pointer-events: none;
-}
-.detail__bar .pill { pointer-events: auto; background: var(--bg); }
 
 @media (max-width: 1100px) { :root { --detail-side: 40px; } }
 @media (max-width: 760px) {
