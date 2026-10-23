@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Archive</title>
-<link rel="stylesheet" href="style.css?v=20261023-1">
+<link rel="stylesheet" href="style.css?v=20261023-2">
 </head>
 <body>
 <header class="bar">
@@ -26,8 +26,8 @@
   </aside>
 </div>
 
-<script src="data.js?v=20261023-1"></script>
-<script src="common.js?v=20261023-1"></script>
+<script src="data.js?v=20261023-2"></script>
+<script src="common.js?v=20261023-2"></script>
 <script>
 const grid = document.querySelector(".grid");
 const tiles = POSTS.map(p => {
@@ -127,7 +127,11 @@ function fit() {
 document.fonts.ready.then(fit);
 addEventListener("resize", fit);
 const barName = document.querySelector(".bar__name");
-new IntersectionObserver(([e]) => { barName.dataset.hidden = e.isIntersecting; }, { rootMargin: "-44px 0px 0px 0px" }).observe(hero);
+const bar = document.querySelector(".bar");
+const syncBarName = () => { barName.dataset.hidden = hero.getBoundingClientRect().bottom > bar.offsetHeight; };
+addEventListener("scroll", syncBarName, { passive: true });
+addEventListener("resize", syncBarName);
+syncBarName();
 </script>
 </body>
 </html>
