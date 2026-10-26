@@ -2,7 +2,7 @@
 
 다른 컴퓨터에서 이 사이트 작업을 이어 가기 위한 문서다. 사이트 설계 규칙은 [design-spec.md](design-spec.md), 이미지 이용 주의사항은 [image-usage-cautions.md](image-usage-cautions.md)에 있다.
 
-## 1. 현재 상태 (2026-10-23 기준)
+## 1. 현재 상태 (2026-10-26 기준)
 
 - **공개 주소:** https://2wdoridu.github.io/archive/
 - **저장소:** https://github.com/2wdoridu/archive (공개, `main` 브랜치 루트에서 GitHub Pages 배포)
@@ -16,6 +16,7 @@
 | `index.html` | 홈: 대형 사이트 이름, 판매품 필터, 벽돌형 그리드, PC 분할 상세 패널 |
 | `detail.html` | 상세 페이지(`detail.html?id=게시물 식별자`) |
 | `info.html` | 정보 페이지 |
+| `card/index.html` | 카드 페이지: 빵의시간 창가 3D 장면(Three.js, CDN), 머그 인쇄 이미지 올리기·조정, 확대해서 보기, 이미지·5초 영상 저장, 공유. 한 파일로 완결되고 로고 손글씨는 파일 안에 들어 있음 |
 | `style.css` | 전체 스타일. 색·여백·상단 바 높이 등은 `:root` 변수 |
 | `common.js` | 공통 함수: 상세 렌더링(`renderDetail`), 갤러리, 카드, 형태 칩 |
 | `data.js` | 게시물 데이터(`POSTS`). 디자인 하나를 이미지·굿즈 형태별 게시물로 펼치는 `design()` 포함 |
@@ -41,7 +42,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 ## 4. 수정하고 배포하는 방법
 
 1. 파일을 고치고 로컬 서버로 확인한다. PC는 1920px과 1536px(1920 모니터 + Windows 배율 125%), 휴대폰은 390px로 확인한다.
-2. `index.html`, `detail.html`, `info.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261023-4`.
+2. `index.html`, `detail.html`, `info.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261026-1`.
 3. 커밋하고 `git push` 한다.
 4. 1~2분 뒤 공개 주소에 반영된다. 브라우저가 예전 파일을 보여 주면 Ctrl+F5.
 
@@ -88,6 +89,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 3. **커스텀 이미지 교체:** 커스텀 4개는 시안용 재채색 이미지(고흐 붓꽃 등)를 쓰고 있어 연결된 원작과 그림 내용이 다르다. 실제 커스텀 작품으로 바꾼다.
 4. **최종 구조로 이전:** 설계 문서의 Astro + 게시물 폴더 구조로 옮기고, 배포 전 자동 검사(필수 항목, 원작 연결, 허용 라이선스)를 넣는다.
 5. **사이트 아이콘(favicon) 추가.**
+6. **카드 페이지:** 아카이브 게시물 중에서 머그 이미지를 고르는 기능(메트 이미지는 다른 사이트에서 불러오면 막히므로 사본을 저장소에 둬야 함), 봄 장면 선택. 장면 원본 작업 파일은 저장소 밖 `card-sketch/` 폴더에 있다.
 
 ## 7. 결정 이력
 
