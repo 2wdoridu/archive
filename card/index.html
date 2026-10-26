@@ -991,9 +991,9 @@ composer.addPass(tiltShift(new THREE.Vector2(1 / W, 0)));
 composer.addPass(tiltShift(new THREE.Vector2(0, 1 / H)));
 composer.addPass(new OutputPass());
 composer.addPass(new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, tCap: { value: capTex }, uTime: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, tCap: { value: capTex }, uTime: { value: 0 }, uCapX: { value: 0.5 } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform sampler2D tCap; uniform float uTime; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform sampler2D tCap; uniform float uTime; uniform float uCapX; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + uTime) * 43758.5453); }
     void main(){
       vec3 c = texture2D(tDiffuse, vUv).rgb;
@@ -1003,7 +1003,7 @@ composer.addPass(new ShaderPass({
       float d = distance(vUv, vec2(0.58, 0.32));
       c *= mix(1.0, 0.86, smoothstep(0.35, 0.95, d));
       c += (hash(vUv * 1000.) - 0.5) * 0.035;
-      vec2 capUv = vec2(vUv.x, (vUv.y * 1080. + 46.) / 200.);
+      vec2 capUv = vec2(vUv.x - (uCapX - 0.5), (vUv.y * 1080. + 46.) / 200.);
       if (capUv.y > 0. && capUv.y < 1.) { vec4 cap = texture2D(tCap, capUv); c = mix(c, cap.rgb, cap.a); }
       gl_FragColor = vec4(c, 1.);
     }`,
@@ -1062,6 +1062,8 @@ const ease = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 // 화분·미니 트리 전구가 비추는 빛: 밝기와 색이 잔잔하게 바뀜
 const glows = [];
 scene.traverse(o => { if (o.isPointLight && o.userData.glow) glows.push({ l: o, base: o.color.clone(), alt: new THREE.Color(glows.length ? "#ffb0a0" : "#d6f0b0"), phase: glows.length * 2.4 }); });
+// 빵 접시와 머그의 가운데 지점
+const FOCUS = new THREE.Vector3(0.78, OY0 + 0.1, 0.22), focusPt = new THREE.Vector3();
 const sunBase = SUN_DIR.clone();
 let last = 0;
 function tick() {
@@ -1108,6 +1110,13 @@ function tick() {
   const z = ease(zoom.v);
   camera.position.lerpVectors(zoom.fromPos, zoom.toPos, z);
   camera.lookAt(new THREE.Vector3().lerpVectors(zoom.fromLook, zoom.toLook, z));
+  // 화면이 좁아 양옆이 잘릴 때 빵과 머그 사이가 가운데에 오도록 자르는 위치를 맞춤
+  focusPt.copy(FOCUS).project(camera);
+  const cv = renderer.domElement, cw = cv.clientWidth, ch = cv.clientHeight, k = Math.max(cw / W, ch / H);
+  const fx = ((focusPt.x + 1) / 2) * W * k, left = Math.min(0, Math.max(cw - W * k, cw / 2 - fx));
+  cv.style.objectPosition = left + "px 50%";
+  // 로고도 같은 지점 아래에 오도록
+  postPass.uniforms.uCapX.value = (focusPt.x + 1) / 2;
   postPass.uniforms.uTime.value = t;
   composer.render();
   window.__ready = true;
