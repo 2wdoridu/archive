@@ -49,6 +49,11 @@
   /* 접으면 패널은 사라지고 펼치기 버튼만 장면 위에 떠 있음 */
   body.folded .tool { flex-basis: 0; border: 0; }
   body.folded .icon { position: fixed; top: 20px; right: 20px; z-index: 3; width: 44px; height: 44px; border: 0; box-shadow: 0 4px 16px rgba(0,0,0,.22); }
+  .stage { cursor: grab; touch-action: pan-y; }
+  .stage.dragging { cursor: grabbing; }
+  .fab { display: none; position: fixed; top: 20px; right: 72px; z-index: 3; width: 44px; height: 44px; place-items: center; border-radius: 10px; border: 0; background: #fff; color: #111; box-shadow: 0 4px 16px rgba(0,0,0,.22); cursor: pointer; }
+  .fab[aria-pressed="true"] { background: #002fa7; color: #fff; }
+  body.folded .fab { display: grid; }
   /* 휴대폰: 장면 위, 패널 아래 */
   @media (max-width: 700px) {
     body { flex-direction: column; }
@@ -56,6 +61,8 @@
     .tool { flex: 1 1 auto; height: auto; border-left: 0; border-top: 1px solid #d9d9d4; }
     body.folded .tool { flex: 0 0 0; }
     body.folded .stage { flex: 1; height: auto; }
+    body.folded .icon { top: auto; bottom: 20px; }
+    .fab { top: auto; bottom: 20px; }
   }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -81,6 +88,10 @@
     </button>
   </div>
   <div class="tool__body">
+    <div class="seg" role="group" aria-label="계절">
+      <button type="button" data-season="winter" aria-pressed="true">겨울</button>
+      <button type="button" data-season="spring" aria-pressed="false">봄</button>
+    </div>
     <canvas id="pv" width="336" height="336" aria-label="머그 인쇄 미리보기"></canvas>
     <p class="hint">끌어서 위치, 휠로 크기 조정</p>
     <div class="seg" role="group" aria-label="인쇄 모양">
@@ -101,6 +112,9 @@
     </div>
   </div>
 </aside>
+<button class="fab" id="zoomFab" type="button" aria-label="확대해서 보기" aria-pressed="false">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/><line x1="11" y1="8" x2="11" y2="14" class="plus"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+</button>
 <div class="toast" id="toast" role="status"></div>
 <script type="module">
 import * as THREE from "three";
@@ -133,6 +147,9 @@ camera.setViewOffset(W, H, 0, H * 0.07, W * 0.87, H * 0.87);
 const SUN_DIR = new THREE.Vector3(0.5, 0.26, -1).normalize();
 const LIGHT_TRAVEL = SUN_DIR.clone().negate();
 
+// 계절(겨울·봄)마다 보이는 물체 목록
+const SEASON_OBJ = { winter: [], spring: [] };
+const markSince = (season, from) => scene.children.slice(from).forEach(o => SEASON_OBJ[season].push(o));
 // 하늘·안개
 const HORIZON = new THREE.Color("#cfe2ee");
 function gradientTexture(stops, w = 4, h = 256) {
@@ -266,7 +283,8 @@ awningCorner(OX1, AZ, Math.PI / 2);
 
 // 바깥 풍경: 로우폴리 나무·언덕
 const GROUND_Y = -5;
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), mat("#e6eaf1"));
+const groundMat = mat("#e6eaf1");
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), groundMat);
 ground.rotation.x = -Math.PI / 2; ground.position.y = GROUND_Y; ground.receiveShadow = true; scene.add(ground);
 
 const greens = ["#7f9a4e", "#93a957", "#6f8a48", "#a6b462", "#86a05a"];
@@ -408,7 +426,7 @@ function flower(pos, size) {
     b.position.copy(pos).add(new THREE.Vector3((rand() - 0.5) * size * 1.2, -size * 0.4 - rand() * size * 0.3, (rand() - 0.5) * size)); scene.add(b);
   }
 }
-function _unusedFlower(pos, size) {
+function springFlower(pos, size) {
   const g = new THREE.Group();
   const pm = petalMats[Math.floor(rand() * petalMats.length)];
   const spin = rand() * Math.PI;
@@ -426,18 +444,24 @@ function _unusedFlower(pos, size) {
   g.lookAt(pos.clone().add(toCam));
   scene.add(g);
 }
+const springBudMat = mat("#e79aa0", { emissive: "#c2646d", emissiveIntensity: 0.25 });
+const springLeafMat = mat("#8fae5a", { side: THREE.DoubleSide });
 for (const tip of twigTips) {
   const n = tip.tip ? 3 + Math.floor(rand() * 3) : (rand() < 0.7 ? 1 + Math.floor(rand() * 2) : 0);
   for (let i = 0; i < n; i++) {
     const p = tip.p.clone().add(new THREE.Vector3((rand() - 0.5) * 0.12, (rand() - 0.5) * 0.1, (rand() - 0.5) * 0.08));
-    const roll = rand();
-    if (roll < 0.72) flower(p, 0.045 + rand() * 0.02);
-    else if (roll < 0.9) {
-      const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.018 + rand() * 0.008, 0), budMat);
-      b.scale.set(1, 1.4, 1); b.position.copy(p); scene.add(b);
-    } else {
-      const lf = new THREE.Mesh(petalGeo, sproutMat);
-      lf.scale.set(0.07, 0.04, 0.04); lf.position.copy(p); lf.rotation.set(rand() * 3, rand() * 3, rand() * 3); scene.add(lf);
+    const roll = rand(), size = 0.045 + rand() * 0.02;
+    for (const season of ["winter", "spring"]) {
+      const from = scene.children.length;
+      if (roll < 0.72) (season === "winter" ? flower : springFlower)(p, size);
+      else if (roll < 0.9) {
+        const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.022, 0), season === "winter" ? budMat : springBudMat);
+        b.scale.set(1, 1.4, 1); b.position.copy(p); scene.add(b);
+      } else {
+        const lf = new THREE.Mesh(petalGeo, season === "winter" ? sproutMat : springLeafMat);
+        lf.scale.set(0.07, 0.04, 0.04); lf.position.copy(p); lf.rotation.set(i, i * 2, i * 3); scene.add(lf);
+      }
+      markSince(season, from);
     }
   }
 }
@@ -570,7 +594,18 @@ function makeArt(h = 512) {
   g.fillStyle = "#f2c14e"; [[220, 250], [290, 300], [235, 320], [275, 210], [300, 360]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y + o, 7, 0, Math.PI * 2); g.fill(); });
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+function makeSpringArt(h = 512) {
+  const c = document.createElement("canvas"); c.width = 512; c.height = h;
+  const g = c.getContext("2d"), o = h - 512;
+  const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, "#002fa7"); lg.addColorStop(1, "#3f63c4");
+  g.fillStyle = lg; g.fillRect(0, 0, 512, h);
+  g.fillStyle = "#f4f4f1"; g.beginPath(); g.arc(280, 200 + o, 90, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#0a33a9"; g.beginPath(); g.arc(320, 180 + o, 84, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#14268a"; g.fillRect(0, 390 + o, 512, 122);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 const ART = makeArt();
+const ART_SPRING = makeSpringArt();
 // 머그 인쇄 면: 이미지(없으면 예시 그림)를 원 안에 위치·크기·회전을 적용해 그림
 const printCanvas = document.createElement("canvas"); printCanvas.width = printCanvas.height = 512;
 const ART_ROUND = new THREE.CanvasTexture(printCanvas); ART_ROUND.colorSpace = THREE.SRGBColorSpace;
@@ -601,7 +636,7 @@ function drawFrame(img) {
   g.drawImage(img, (512 - img.width * k) / 2, (715 - img.height * k) / 2, img.width * k, img.height * k);
   FRAME_TEX.needsUpdate = true;
 }
-const FRAME_DEFAULT = makeArt(715).image;
+const FRAME_DEFAULT = makeArt(715).image, FRAME_SPRING = makeSpringArt(715).image;
 drawFrame(FRAME_DEFAULT);
 const mug = new THREE.Group();
 const MR = 0.17, MH = 0.36;
@@ -713,7 +748,7 @@ sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 60 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02; sun.shadow.radius = 4;
 scene.add(sun);
-scene.add(new THREE.HemisphereLight("#d8eaf7", "#a08a74", 1.6));
+const hemi = new THREE.HemisphereLight("#d8eaf7", "#a08a74", 1.6); scene.add(hemi);
 // 실내 반사광(창턱에서 튀어 오르는 따뜻한 빛)
 const bounce = new THREE.PointLight("#ffd2a0", 1.4, 7, 1.4); bounce.position.set(0.8, 1.3, 1.6); scene.add(bounce);
 
@@ -753,6 +788,7 @@ beam(new THREE.Vector3(2.3, 2.4, -0.2), 4.2, 0.35, 0.75, 0.3);
 beam(new THREE.Vector3(1.0, 2.1, -0.2), 3.6, 0.25, 0.55, 0.24);
 beam(new THREE.Vector3(-0.4, 2.5, -0.2), 3.4, 0.22, 0.5, 0.18);
 
+const decoFrom = scene.children.length;
 // 크리스마스 양말: 장화 모양 천에 흰 털 테두리
 function stocking(color, s = 1) {
   const g = new THREE.Group();
@@ -913,6 +949,8 @@ function stocking(color, s = 1) {
   contact(2.14, 0.18, 0.3);
 }
 
+markSince("winter", decoFrom);
+
 // 빛 속 먼지
 const dustTex = (() => {
   const c = document.createElement("canvas"); c.width = c.height = 64;
@@ -1036,7 +1074,8 @@ const spawnFlake = (i, anyHeight) => {
 };
 for (let i = 0; i < flakeN; i++) spawnFlake(i, true);
 const flakeGeo = new THREE.BufferGeometry(); flakeGeo.setAttribute("position", new THREE.BufferAttribute(flakeArr, 3));
-scene.add(new THREE.Points(flakeGeo, new THREE.PointsMaterial({ size: 0.03, map: dustTex, color: "#ffffff", transparent: true, depthWrite: false, opacity: 0.95 })));
+const flakePts = new THREE.Points(flakeGeo, new THREE.PointsMaterial({ size: 0.03, map: dustTex, color: "#ffffff", transparent: true, depthWrite: false, opacity: 0.95 }));
+scene.add(flakePts);
 // 창밖 함박눈: 둥근 눈송이가 앞뒤 여러 겹으로 흔들리며 내림
 const snowN = 1800, snowArr = new Float32Array(snowN * 3), snowSeed = new Float32Array(snowN);
 const snowRange = { x0: -6, x1: 8, y0: -3, y1: 4.6 };
@@ -1053,7 +1092,29 @@ const snowTex = (() => {
   g.fillStyle = rg; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
 })();
 const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute("position", new THREE.BufferAttribute(snowArr, 3));
-scene.add(new THREE.Points(snowGeo, new THREE.PointsMaterial({ size: 0.15, map: snowTex, color: "#ffffff", transparent: true, depthWrite: false, opacity: 1 })));
+const snowPts = new THREE.Points(snowGeo, new THREE.PointsMaterial({ size: 0.15, map: snowTex, color: "#ffffff", transparent: true, depthWrite: false, opacity: 1 }));
+scene.add(snowPts);
+// 계절 바꾸기: 하늘·빛·숲 색·가지·장식·눈(봄에는 꽃잎)·기본 그림
+const SEASONS = {
+  winter: { sky: scene.background, horizon: "#cfe2ee", fog: [18, 120], sun: ["#fff1dc", 6.2], hemi: ["#d8eaf7", "#a08a74", 1.6], ground: "#e6eaf1", top: "#fbfcfe", topGlow: 0.18, fall: "#ffffff", fallSize: 0.15, fallCount: 1, art: ART.image, frame: FRAME_DEFAULT },
+  spring: { sky: gradientTexture([[0, "#8fb6d6"], [0.45, "#d9d3bf"], [0.72, "#f3d3a2"], [1, "#f3d3a2"]]), horizon: "#f1d6ad", fog: [16, 110], sun: ["#ffd49a", 5.4], hemi: ["#cfdcea", "#9c7652", 1.3], ground: "#8f9a5c", top: "#86a85a", topGlow: 0, fall: "#f6c9cf", fallSize: 0.09, fallCount: 0.25, art: ART_SPRING.image, frame: FRAME_SPRING },
+};
+let season = "winter";
+function setSeason(name) {
+  season = name; const S = SEASONS[name];
+  scene.background = S.sky; scene.fog.color.set(S.horizon); scene.fog.near = S.fog[0]; scene.fog.far = S.fog[1];
+  sun.color.set(S.sun[0]); sun.intensity = S.sun[1];
+  hemi.color.set(S.hemi[0]); hemi.groundColor.set(S.hemi[1]); hemi.intensity = S.hemi[2];
+  groundMat.color.set(S.ground);
+  firSnow.color.set(S.top); firSnow.emissiveIntensity = S.topGlow;
+  for (const k of ["winter", "spring"]) for (const o of SEASON_OBJ[k]) o.visible = k === name;
+  snowPts.material.color.set(S.fall); snowPts.material.size = S.fallSize;
+  snowGeo.setDrawRange(0, Math.floor(snowN * S.fallCount));
+  flakePts.material.color.set(S.fall);
+  // 사용자가 올린 이미지가 없을 때만 기본 그림을 바꿈
+  if (!printState.custom) { printState.img = S.art; printState.rim = name === "winter"; drawPrint(); drawFrame(S.frame); }
+}
+setSeason("winter");
 // 확대해서 보기: 빵과 머그 쪽으로 카메라가 다가감(0 전체, 1 확대)
 const zoom = { v: 0, to: 0, from: 0, start: 0,
   fromPos: camera.position.clone(), fromLook: new THREE.Vector3(0.5, 1.92, 0),
@@ -1063,6 +1124,7 @@ const ease = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const glows = [];
 scene.traverse(o => { if (o.isPointLight && o.userData.glow) glows.push({ l: o, base: o.color.clone(), alt: new THREE.Color(glows.length ? "#ffb0a0" : "#d6f0b0"), phase: glows.length * 2.4 }); });
 // 빵 접시와 머그의 가운데 지점
+const pan = { x: 0 };
 const FOCUS = new THREE.Vector3(0.78, OY0 + 0.1, 0.22), focusPt = new THREE.Vector3();
 const sunBase = SUN_DIR.clone();
 let last = 0;
@@ -1090,7 +1152,7 @@ function tick() {
   flakeGeo.attributes.position.needsUpdate = true;
   for (let i = 0; i < snowN; i++) {
     const k = snowSeed[i];
-    snowArr[i * 3 + 1] -= (0.16 + k * 0.12) * dt;
+    snowArr[i * 3 + 1] -= (0.16 + k * 0.12) * (season === "spring" ? 0.6 : 1) * dt;
     snowArr[i * 3] += Math.sin(t * (0.35 + k * 0.25) + k * 20) * 0.05 * dt;
     if (snowArr[i * 3 + 1] < snowRange.y0) { snowArr[i * 3 + 1] = snowRange.y1; snowArr[i * 3] = snowRange.x0 + Math.random() * (snowRange.x1 - snowRange.x0); }
     if (snowArr[i * 3] > snowRange.x1) snowArr[i * 3] = snowRange.x0;
@@ -1113,7 +1175,9 @@ function tick() {
   // 화면이 좁아 양옆이 잘릴 때 빵과 머그 사이가 가운데에 오도록 자르는 위치를 맞춤
   focusPt.copy(FOCUS).project(camera);
   const cv = renderer.domElement, cw = cv.clientWidth, ch = cv.clientHeight, k = Math.max(cw / W, ch / H);
-  const fx = ((focusPt.x + 1) / 2) * W * k, left = Math.min(0, Math.max(cw - W * k, cw / 2 - fx));
+  const fx = ((focusPt.x + 1) / 2) * W * k, minLeft = cw - W * k;
+  const left = Math.min(0, Math.max(minLeft, cw / 2 - fx + pan.x));
+  pan.x = left - (cw / 2 - fx); // 끝을 넘지 않도록 드래그 값도 함께 묶음
   cv.style.objectPosition = left + "px 50%";
   // 로고도 같은 지점 아래에 오도록
   postPass.uniforms.uCapX.value = (focusPt.x + 1) / 2;
@@ -1162,17 +1226,38 @@ tick();
     const timer = setInterval(() => { left--; if (left > 0) btn.textContent = `녹화 중 ${left}초`; else clearInterval(timer); }, 1000);
     rec.start(); setTimeout(() => rec.stop(), 5000);
   });
-  document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("[data-season]").forEach(b => b.addEventListener("click", () => {
+    setSeason(b.dataset.season);
+    document.querySelectorAll("[data-season]").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+    update();
+  }));
+  document.querySelectorAll("[data-shape]").forEach(b => b.addEventListener("click", () => {
     printState.shape = b.dataset.shape;
-    document.querySelectorAll(".seg button").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+    document.querySelectorAll("[data-shape]").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
     pv.classList.toggle("square", printState.shape === "square");
     update();
   }));
-  $("zoom").addEventListener("change", e => { zoom.from = zoom.v; zoom.to = e.target.checked ? 1 : 0; zoom.start = performance.now(); });
+  const setZoom = on => {
+    zoom.from = zoom.v; zoom.to = on ? 1 : 0; zoom.start = performance.now();
+    $("zoom").checked = on;
+    $("zoomFab").setAttribute("aria-pressed", String(on));
+    $("zoomFab").setAttribute("aria-label", on ? "확대 해제" : "확대해서 보기");
+    $("zoomFab").querySelector(".plus").style.display = on ? "none" : "";
+  };
+  $("zoom").addEventListener("change", e => setZoom(e.target.checked));
+  $("zoomFab").addEventListener("click", () => setZoom(!$("zoom").checked));
+  // 장면을 좌우로 끌어 잘린 부분 보기
+  {
+    const stage = $("stage"); let drag = null;
+    stage.addEventListener("pointerdown", e => { drag = { x: e.clientX, p: pan.x }; stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId); });
+    stage.addEventListener("pointermove", e => { if (drag) pan.x = drag.p + (e.clientX - drag.x); });
+    const end = () => { drag = null; stage.classList.remove("dragging"); };
+    stage.addEventListener("pointerup", end); stage.addEventListener("pointercancel", end);
+  }
   $("file").addEventListener("change", e => {
     const f = e.target.files[0]; if (!f) return;
     const img = new Image();
-    img.onload = () => { Object.assign(printState, { img, x: 0, y: 0, s: 1, r: 0, rim: false }); drawFrame(img); syncInputs(); update(); };
+    img.onload = () => { Object.assign(printState, { img, x: 0, y: 0, s: 1, r: 0, rim: false, custom: true }); drawFrame(img); syncInputs(); update(); };
     img.src = URL.createObjectURL(f);
   });
   $("sc").addEventListener("input", e => { printState.s = +e.target.value; update(); });
