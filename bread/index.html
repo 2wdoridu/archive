@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>나만의 빵 스티커</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; overflow: hidden; background: #e9e7e2; color: #111; font: 15px/1.5 "Pretendard", "Malgun Gothic", sans-serif; }
+  /* 왼쪽 스티커 미리보기, 오른쪽 조정 패널(휴대폰은 위아래) */
+  .stage { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 32px; box-sizing: border-box; }
+  .stage canvas { display: block; max-width: 100%; max-height: 100%; aspect-ratio: 1400 / 1880; background: #fff; box-shadow: 0 12px 40px rgba(0,0,0,.18); touch-action: none; cursor: default; }
+  .stage canvas.grab { cursor: grab; }
+  .stage canvas.grabbing { cursor: grabbing; }
+  .tool { flex: 0 0 360px; box-sizing: border-box; height: 100%; display: flex; flex-direction: column; background: #f4f4f1; border-left: 1px solid #d9d9d4; }
+  .tool__head { padding: 24px 24px 8px; }
+  .back { display: inline-block; margin-bottom: 6px; color: #84847f; font-size: 13px; text-decoration: none; }
+  .back:hover { color: #002fa7; }
+  .tool__head h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  .tool__body { flex: 1; overflow-y: auto; padding: 8px 24px 24px; display: flex; flex-direction: column; gap: 28px; }
+  .tool__foot { padding: 16px 24px 24px; border-top: 1px solid #d9d9d4; display: grid; gap: 10px; }
+  section { display: grid; gap: 10px; }
+  h2 { margin: 0; font-size: 14px; font-weight: 700; }
+  .note { margin: 0; color: #84847f; font-size: 12px; }
+  .picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .pick { padding: 4px; border: 2px solid transparent; border-radius: 10px; background: #fff; cursor: pointer; }
+  .pick img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; }
+  .pick span { display: block; margin-top: 2px; font-size: 11px; color: #555; text-align: center; line-height: 1.3; min-height: 2.6em; word-break: keep-all; }
+  .pick[aria-pressed="true"] { border-color: #002fa7; }
+  .pick:disabled { opacity: .4; cursor: default; }
+  .pick:focus-visible, .swatch:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid #002fa7; outline-offset: 2px; }
+  .field { display: grid; gap: 4px; font-size: 13px; color: #555; }
+  .field input[type=range] { width: 100%; accent-color: #002fa7; }
+  .lv { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .num { width: 56px; box-sizing: border-box; padding: 4px 6px; border: 1px solid #cfcfca; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; color: #111; text-align: center; }
+  .btn--small { padding: 4px 12px; border-radius: 8px; font-size: 12px; }
+  .row { display: grid; grid-template-columns: 84px 1fr; gap: 8px; }
+  .text { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #cfcfca; border-radius: 8px; background: #fff; font: inherit; font-size: 14px; color: #111; }
+  .text[aria-invalid="true"] { border-color: #d92d20; }
+  .count { justify-self: end; font-size: 11px; color: #84847f; }
+  .swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+  .swatch { aspect-ratio: 1; padding: 0; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #cfcfca; cursor: pointer; }
+  .swatch[aria-checked="true"] { box-shadow: 0 0 0 2px #002fa7; }
+  .err { margin: 0; color: #d92d20; font-size: 12px; }
+  .err:empty { display: none; }
+  .btn { padding: 11px 12px; border: 1px solid #cfcfca; border-radius: 10px; background: #fff; color: #111; font: inherit; font-size: 14px; cursor: pointer; }
+  .btn:disabled { color: #b5b5b0; cursor: default; }
+  .btn--primary { border-color: #002fa7; background: #002fa7; color: #fff; font-size: 15px; font-weight: 700; }
+  .status { margin: 0; font-size: 13px; color: #555; }
+  .status:empty { display: none; }
+  .status.bad { color: #d92d20; }
+  /* 무지개가 뽑혔을 때 화면 테두리를 도는 축하 장식 */
+  @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  .party { display: none; position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+  body.is-rainbow .party { display: block; }
+  .party i, .party b { position: absolute; inset: 0; padding: 10px;
+    background: conic-gradient(from var(--spin), #ff7eb3, #ffa26b, #ffd86b, #9cf0b8, #6fd3ff, #8f9bff, #d38bff, #ff7eb3);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: party-spin 4s linear infinite; }
+  /* 안쪽으로 번지는 빛: 감싼 요소를 흐리게 해야 가린 띠 모양을 따라 번짐 */
+  .party .glow { position: absolute; inset: 0; filter: blur(18px); opacity: .9; }
+  .party .glow i { padding: 22px; }
+  /* 띠를 따라 도는 흰 반짝임 */
+  .party b { background: conic-gradient(from var(--spin), transparent 0 78%, rgba(255,255,255,.95) 86%, transparent 94%); animation-duration: 2.2s; animation-direction: reverse; mix-blend-mode: screen; }
+  @keyframes party-spin { to { --spin: 360deg; } }
+  @media (prefers-reduced-motion: reduce) { .party i, .party b { animation: none; } }
+  @media (max-width: 760px) {
+    body { flex-direction: column; overflow: auto; height: auto; }
+    .stage { flex: none; height: 56vh; padding: 16px; }
+    .tool { flex: none; height: auto; border-left: 0; border-top: 1px solid #d9d9d4; }
+    .tool__head, .tool__body, .tool__foot { padding-left: 16px; padding-right: 16px; }
+    .tool__foot { position: sticky; bottom: 0; background: #f4f4f1; }
+  }
+</style>
+</head>
+<body>
+<div class="party" aria-hidden="true"><span class="glow"><i></i></span><i></i><b></b></div>
+<main class="stage"><canvas id="sticker" width="1400" height="1880" aria-label="스티커 미리보기"></canvas></main>
+<aside class="tool">
+  <div class="tool__head">
+    <a class="back" href="../index.html">← 아카이브</a>
+    <h1>나만의 빵 스티커</h1>
+  </div>
+  <div class="tool__body">
+    <section aria-labelledby="h-base">
+      <h2 id="h-base">빵</h2>
+      <div class="picks" id="bases"></div>
+      <p class="err" id="baseErr"></p>
+    </section>
+    <section aria-labelledby="h-top">
+      <h2 id="h-top">토핑</h2>
+      <div class="picks" id="toppings"></div>
+      <button class="btn" type="button" id="random">랜덤 조합</button>
+    </section>
+    <section aria-labelledby="h-place">
+      <h2 id="h-place">배치</h2>
+      <div class="field">
+        <span class="lv"><label for="bSize">크기</label><input class="num" type="number" id="bSizeN" min="1" max="10" step="1" value="5" aria-label="크기 값"></span>
+        <input type="range" id="bSize" min="1" max="10" step="1" value="5">
+      </div>
+      <div class="field">
+        <span class="lv"><label for="bRot">회전</label><input class="num" type="number" id="bRotN" min="1" max="10" step="1" value="1" aria-label="회전 값"></span>
+        <input type="range" id="bRot" min="1" max="10" step="1" value="1">
+      </div>
+    </section>
+    <section aria-labelledby="h-label">
+      <h2 id="h-label">문구</h2>
+      <div class="row">
+        <label class="field">넘버<input class="text" id="num" inputmode="numeric" maxlength="3" placeholder="000" autocomplete="off"></label>
+        <label class="field">이름<input class="text" id="topText" maxlength="12" placeholder="예: 딸기 토스트" autocomplete="off"></label>
+      </div>
+      <span class="count" id="topCount">0/12</span>
+      <p class="err" id="topErr"></p>
+      <div class="lv"><span id="colorLabel" class="field">넘버 색</span><button class="btn btn--small" type="button" id="randomColor">랜덤</button></div>
+      <div class="swatches" id="colors" role="radiogroup" aria-labelledby="colorLabel"></div>
+    </section>
+  </div>
+  <div class="tool__foot">
+    <button class="btn btn--primary" type="button" id="buy">구매하기</button>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </div>
+</aside>
+<script type="module">
+// 스티커 규격은 Figma 메뉴 카드(1400×1880)와 같음
+const W = 1400, H = 1880;
+// 구매 페이지 주소(네이버 스토어 주문제작 상품). 비어 있으면 검사만 하고 이동하지 않음
+const STORE_URL = "";
+// 이름 글자 수: 상단 알약 최대 폭(카드 폭 - 좌우 여백 100)에 70px 글자가 넘치지 않는 수
+const TOP_MAX = 12;
+
+// 빵·토핑 조합별 완성 이미지. 키는 "빵 번호:토핑 번호(오름차순, 쉼표)", 예: "0:1,3" → "img/combo/0-1-3.jpg"
+const COMBOS = {};
+// 넘버 배경색: Figma 카드에 쓰인 주황·초록·파랑·보라·핑크는 같은 값
+const COLORS = [
+  { name: "빨강", fill: "#ef3b3b" },
+  { name: "주황", fill: "#f26d0d" },
+  { name: "노랑", fill: "#f7c600", ink: "#111827" },
+  { name: "초록", fill: "#17ca41" },
+  { name: "파랑", fill: "#219dee" },
+  { name: "보라", fill: "#7737e5" },
+  { name: "검정", fill: "#111827" },
+  { name: "흰색", fill: "#ffffff", ink: "#111827", line: "#d1d5db" },
+  { name: "핑크", fill: "#ec4596" },
+  { name: "하늘색", fill: "#5ac8fa" },
+  { name: "무지개", rainbow: ["#ef3b3b", "#f26d0d", "#f7c600", "#17ca41", "#219dee", "#7737e5"] },
+];
+
+const $ = id => document.getElementById(id);
+const cv = $("sticker"), g = cv.getContext("2d");
+// top: 빵 윗면을 감싸는 타원(1213 정사각 기준 비율: 가운데, 반지름, 기울기). 샘플 합성에서 토핑을 놓는 범위
+const BASES = [
+  { name: "빵 없음", none: true },
+  { name: "치즈 토스트", short: "토스트", src: "img/base-cheese-toast.jpg", top: { cx: 0.53, cy: 0.38, rx: 0.24, ry: 0.13, rot: -0.42 } },
+  { name: "소시지 페이스트리", short: "페이스트리", src: "img/base-sausage-pastry.jpg", top: { cx: 0.49, cy: 0.44, rx: 0.3, ry: 0.07, rot: -0.34 } },
+  { name: "크림 바게트", short: "바게트", src: "img/base-cream-baguette.jpg", top: { cx: 0.52, cy: 0.42, rx: 0.27, ry: 0.1, rot: -0.3 } },
+];
+// 토핑 샘플 그림: (그릴 곳, 가운데 x, y, 크기 s, 난수). 실제 서비스에서는 조합별 완성 이미지로 바뀜
+const drawCream = (x, cx, cy, s) => {
+  for (const [dy, w] of [[0.18, 1], [-0.02, 0.78], [-0.2, 0.52]]) {
+    const gr = x.createRadialGradient(cx - s * 0.2, cy + s * dy - s * 0.12, s * 0.05, cx, cy + s * dy, s * 0.55 * w);
+    gr.addColorStop(0, "#ffffff"); gr.addColorStop(0.7, "#fbf6ec"); gr.addColorStop(1, "#e7dcc8");
+    x.fillStyle = gr; x.beginPath(); x.ellipse(cx, cy + s * dy, s * 0.5 * w, s * 0.24 * w, 0, 0, Math.PI * 2); x.fill();
+  }
+  x.fillStyle = "#fbf6ec"; x.beginPath(); x.moveTo(cx - s * 0.12, cy - s * 0.3); x.quadraticCurveTo(cx + s * 0.02, cy - s * 0.62, cx + s * 0.1, cy - s * 0.28); x.fill();
+};
+const drawStrawberry = (x, cx, cy, s, rnd) => {
+  x.save(); x.translate(cx, cy); x.rotate((rnd() - 0.5) * 1.2); x.scale(s, s);
+  x.fillStyle = "#d62c39"; x.beginPath(); x.moveTo(0, 0.5); x.bezierCurveTo(-0.55, 0.1, -0.45, -0.45, 0, -0.38); x.bezierCurveTo(0.45, -0.45, 0.55, 0.1, 0, 0.5); x.fill();
+  x.fillStyle = "#f59a9c"; x.beginPath(); x.moveTo(0, 0.32); x.bezierCurveTo(-0.3, 0.05, -0.25, -0.25, 0, -0.22); x.bezierCurveTo(0.25, -0.25, 0.3, 0.05, 0, 0.32); x.fill();
+  x.fillStyle = "#fff4e0"; for (const [a, b] of [[-0.3, 0], [0.3, 0], [-0.18, 0.25], [0.18, 0.25], [0, -0.3]]) { x.beginPath(); x.ellipse(a, b, 0.025, 0.04, 0, 0, Math.PI * 2); x.fill(); }
+  x.fillStyle = "#4f9a3a"; x.beginPath(); x.ellipse(-0.1, -0.42, 0.16, 0.06, -0.4, 0, Math.PI * 2); x.ellipse(0.1, -0.42, 0.16, 0.06, 0.4, 0, Math.PI * 2); x.fill();
+  x.restore();
+};
+const drawHam = (x, cx, cy, s, rnd) => {
+  x.save(); x.translate(cx, cy); x.rotate((rnd() - 0.5) * 0.8); x.scale(s, s);
+  x.fillStyle = "#f2a3a6"; x.strokeStyle = "#f9d2d0"; x.lineWidth = 0.06;
+  x.beginPath();
+  for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 2, r = 0.5 + Math.sin(a * 5) * 0.04; x.lineTo(Math.cos(a) * r, Math.sin(a) * r * 0.62); }
+  x.closePath(); x.fill(); x.stroke();
+  x.strokeStyle = "rgba(200,90,100,.35)"; x.lineWidth = 0.04; x.beginPath(); x.ellipse(0.05, 0.04, 0.3, 0.16, 0.2, 0.3, 2.6); x.stroke();
+  x.restore();
+};
+const drawChoco = (x, cx, cy, s, rnd, area) => {
+  // 빵 윗면을 가로지르는 지그재그 시럽
+  x.save(); x.translate(cx, cy); x.rotate(area.rot);
+  for (let line = 0; line < 2; line++) {
+    x.beginPath();
+    for (let i = 0; i <= 60; i++) { const u = -1 + i / 30, px = u * area.rx * 0.9, py = (line - 1) * area.ry * 0.5 + Math.sin(i * 0.42 + line * 2.1) * area.ry * 0.55; i ? x.lineTo(px, py) : x.moveTo(px, py); }
+    x.strokeStyle = "#3b1d10"; x.lineWidth = s * 0.06; x.lineCap = x.lineJoin = "round"; x.stroke();
+    // 윤기
+    x.save(); x.translate(-s * 0.012, -s * 0.014); x.shadowColor = "transparent"; x.strokeStyle = "rgba(190,130,95,.55)"; x.lineWidth = s * 0.014; x.stroke(); x.restore();
+  }
+  x.restore();
+};
+// layer: 아래부터 쌓는 순서, count: 윗면에 놓는 개수
+const TOPPINGS = [
+  { name: "생크림", word: "크림", order: 1, draw: drawCream, layer: 1, count: 3, size: 0.26 },
+  { name: "딸기", word: "딸기", order: 0, draw: drawStrawberry, layer: 2, count: 4, size: 0.24 },
+  { name: "햄", word: "햄", order: 3, draw: drawHam, layer: 0, count: 3, size: 0.34 },
+  { name: "초코 시럽", word: "초코", order: 2, draw: drawChoco, layer: 3, count: 0, size: 0.2 },
+];
+// 패널에 보이는 토핑 그림
+// 빵 없음 그림: 점선 원
+{
+  const c = document.createElement("canvas"); c.width = c.height = 160;
+  const x = c.getContext("2d"); x.strokeStyle = "#b5b5b0"; x.lineWidth = 4; x.setLineDash([10, 8]);
+  x.beginPath(); x.arc(80, 80, 44, 0, Math.PI * 2); x.stroke();
+  BASES[0].src = c.toDataURL();
+}
+for (const t of TOPPINGS) {
+  const c = document.createElement("canvas"); c.width = c.height = 160;
+  const x = c.getContext("2d");
+  t.draw(x, 80, 84, 120, () => 0.5, { rx: 70, ry: 40, rot: 0 });
+  t.src = c.toDataURL();
+}
+const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+const [baseImgs, logo] = await Promise.all([
+  Promise.all(BASES.map(b => load(b.src))),
+  load("img/logo.svg"),
+  document.fonts.load('700 70px "Pretendard"'),
+]);
+// 로고 칼선 스티커: 글자 모양을 따라 흰 여백을 두르고, 그 바깥에 옅은 칼선
+const logoCut = (() => {
+  const LW = 224, LH = 64, CUT = 16, pad = CUT + 6;
+  const c = document.createElement("canvas"); c.width = LW + pad * 2; c.height = LH + pad * 2;
+  const x = c.getContext("2d");
+  // 로고 모양을 r만큼 사방으로 부풀린 면을 한 가지 색으로 그림
+  const grow = (r, color) => {
+    const l = document.createElement("canvas"); l.width = c.width; l.height = c.height;
+    const lx = l.getContext("2d");
+    for (let a = 0; a < 48; a++) for (const k of [0.5, 1]) lx.drawImage(logo, pad + Math.cos((a / 48) * Math.PI * 2) * r * k, pad + Math.sin((a / 48) * Math.PI * 2) * r * k, LW, LH);
+    lx.globalCompositeOperation = "source-in"; lx.fillStyle = color; lx.fillRect(0, 0, l.width, l.height);
+    x.drawImage(l, 0, 0);
+  };
+  grow(CUT + 2.5, "#c9c9c4");
+  grow(CUT, "#ffffff");
+  x.drawImage(logo, pad, pad, LW, LH);
+  return c;
+})();
+
+// place: 빵 이미지 한 장의 가운데 위치·배율·회전(사용자가 조정하는 값은 이것뿐)
+// 넘버 배경색은 접속할 때마다 무작위. 주소에 ?rainbow를 붙이면 무지개로 시작(확인용)
+const startColor = new URLSearchParams(location.search).has("rainbow") ? COLORS.length - 1 : crypto.getRandomValues(new Uint32Array(1))[0] % COLORS.length;
+const state = { base: 0, toppings: new Set(), color: startColor,place: { x: 700, y: 1055, k: 1, r: 0 } };
+const comboKey = () => `${state.base}:${[...state.toppings].sort((a, b) => a - b).join(",")}`;
+const comboImgs = {};
+// 고른 조합의 빵 이미지(1213 정사각). 완성 이미지가 있으면 그것을, 없으면 빵 윗면에 토핑 그림을 쌓은 샘플
+function comboImage() {
+  const key = comboKey();
+  if (comboImgs[key]) return comboImgs[key];
+  if (COMBOS[key]) load(COMBOS[key]).then(img => { comboImgs[key] = img; render(); });
+  const c = document.createElement("canvas"); c.width = c.height = 1213;
+  if (BASES[state.base].none) return (comboImgs[key] = c);
+  const x = c.getContext("2d"), b = baseImgs[state.base], k = Math.min(1213 / b.width, 1213 / b.height);
+  x.drawImage(b, (1213 - b.width * k) / 2, (1213 - b.height * k) / 2, b.width * k, b.height * k);
+  const top = BASES[state.base].top, area = { rx: top.rx * 1213, ry: top.ry * 1213, rot: top.rot };
+  const cx0 = top.cx * 1213, cy0 = top.cy * 1213, cos = Math.cos(top.rot), sin = Math.sin(top.rot);
+  for (const i of [...state.toppings].sort((a, b) => TOPPINGS[a].layer - TOPPINGS[b].layer)) {
+    const t = TOPPINGS[i], size = t.size * area.rx * 4;
+    // 같은 조합은 늘 같은 모습이 되도록 빵·토핑 번호로 정한 난수
+    x.shadowColor = "rgba(80,40,10,.35)"; x.shadowBlur = size * 0.08; x.shadowOffsetY = size * 0.04;
+    let sd = state.base * 31 + i * 7 + 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    if (!t.count) { t.draw(x, cx0, cy0, size, rnd, area); continue; }
+    for (let n = 0; n < t.count; n++) {
+      const u = (-0.7 + (1.4 * (n + 0.5)) / t.count + (rnd() - 0.5) * 0.15) * area.rx, v = (rnd() - 0.5) * 0.7 * area.ry;
+      t.draw(x, cx0 + cos * u - sin * v, cy0 + sin * u + cos * v, size * (0.85 + rnd() * 0.3), rnd, area);
+    }
+  }
+  if (!COMBOS[key]) comboImgs[key] = c;
+  return c;
+}
+let dragging = false;
+const chars = s => [...s].length;
+const val = () => ({ num: $("num").value.trim(), top: $("topText").value.trim() });
+
+// 흰 알약 + 그림자(Figma: 0 18.667px 46.667px rgba(0,0,0,.25), 높이 140, 모서리 100)
+function pill(x, y, w, fill) {
+  g.save();
+  g.shadowColor = "rgba(0,0,0,.25)"; g.shadowBlur = 46.667; g.shadowOffsetY = 18.667;
+  g.fillStyle = fill; g.beginPath(); g.roundRect(x, y, w, 140, 70); g.fill();
+  g.restore();
+}
+// 폭이 넓은 글자(영문 W 등)로 자리를 넘기면 그만큼 글자 크기를 줄임
+function fitFont(text, max) {
+  g.font = '700 70px "Pretendard"';
+  const w = g.measureText(text).width;
+  if (w > max) g.font = `700 ${Math.floor((70 * max) / w)}px "Pretendard"`;
+  return Math.min(w, max);
+}
+function render(ui = true) {
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  // 빵: 1213 정사각 이미지, 처음 자리는 카드 가운데보다 115 아래(Figma 메뉴 카드와 같음)
+  const p = state.place, s = 1213 * p.k;
+  g.save(); g.translate(p.x, p.y); g.rotate(p.r);
+  g.drawImage(comboImage(), -s / 2, -s / 2, s, s);
+  if (ui && dragging) { g.strokeStyle = "#002fa7"; g.lineWidth = 6; g.setLineDash([24, 14]); g.strokeRect(-s / 2, -s / 2, s, s); }
+  g.restore();
+  const { num, top } = val();
+  g.textBaseline = "middle";
+  // 상단: 넘버 알약(좌우 56) + 간격 40 + 문구 + 오른쪽 56
+  if (num || top) {
+    g.font = '700 74px "Pretendard"'; const nw = num ? g.measureText(num).width + 112 : 0;
+    const tw = top ? fitFont(top, W - 100 - 56 - (num ? 100 + nw + 40 : 156)) : 0;
+    const w = num && top ? nw + 40 + tw + 56 : num ? nw : tw + 112;
+    pill(100, 100, w, "#fff");
+    if (num) {
+      const c = COLORS[state.color];
+      let fill = c.fill;
+      if (c.rainbow) { fill = g.createLinearGradient(100, 0, 100 + nw, 0); c.rainbow.forEach((h, j) => fill.addColorStop(j / (c.rainbow.length - 1), h)); }
+      g.fillStyle = fill; g.beginPath(); g.roundRect(100, 100, nw, 140, 70); g.fill();
+      if (c.line) { g.strokeStyle = c.line; g.lineWidth = 4; g.beginPath(); g.roundRect(102, 102, nw - 4, 136, 68); g.stroke(); }
+      g.font = '700 74px "Pretendard"'; g.fillStyle = c.ink || "#fff"; g.fillText(num, 156, 172);
+    }
+    if (top) { fitFont(top, tw); g.fillStyle = "#111827"; g.fillText(top, num ? 100 + nw + 40 : 156, 170); }
+  }
+  // 오른쪽 아래 로고(Figma 로고 알약 자리의 가운데)
+  g.save();
+  g.shadowColor = "rgba(0,0,0,.2)"; g.shadowBlur = 28; g.shadowOffsetY = 10;
+  g.drawImage(logoCut, W - 272 - logoCut.width / 2, H - 170 - logoCut.height / 2);
+  g.restore();
+}
+
+// 패널: 빵·토핑 목록
+const pickBtn = (item, onClick) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "pick";
+  b.innerHTML = `<img alt="" src="${item.src}"><span>${item.name}</span>`;
+  b.addEventListener("click", onClick); return b;
+};
+BASES.forEach((item, i) => $("bases").append(pickBtn(item, () => { state.base = i; picked(); })));
+const syncBases = () => [...$("bases").children].forEach((b, i) => b.setAttribute("aria-pressed", String(i === state.base)));
+syncBases();
+TOPPINGS.forEach((item, i) => {
+  $("toppings").append(pickBtn(item, () => {
+    if (state.toppings.has(i)) state.toppings.delete(i); else state.toppings.add(i);
+    picked();
+  }));
+});
+const syncToppings = () => [...$("toppings").children].forEach((b, i) => { b.setAttribute("aria-pressed", String(state.toppings.has(i))); b.disabled = !!BASES[state.base].none; });
+// 빵·토핑이 바뀔 때: 버튼 상태, 자동 이름, 스티커를 함께 갱신
+function picked() {
+  if (BASES[state.base].none) state.toppings.clear();
+  syncBases(); syncToppings();
+  if (autoName) $("topText").value = makeName();
+  // 넘버를 직접 쓰기 전에는 이름이 있으면 001, 없으면 비움
+  if (autoNum) $("num").value = $("topText").value.trim() ? "001" : "";
+  changed();
+}
+// 자동 이름: 토핑 말 + 빵 이름. 넘버 옆 문구 글자 수를 넘으면 띄어쓰기를 빼거나 짧은 빵 이름으로 줄임
+function makeName() {
+  const b = BASES[state.base];
+  if (b.none) return "";
+  const words = [...state.toppings].sort((x, y) => TOPPINGS[x].order - TOPPINGS[y].order).map(i => TOPPINGS[i].word);
+  if (!words.length) return b.name;
+  const tries = [`${words.join(" ")} ${b.name}`, `${words.join("")} ${b.name}`, `${words.join(" ")} ${b.short}`, `${words.join("")} ${b.short}`, `${words.join("")}${b.short}`, `토핑 듬뿍 ${b.short}`];
+  return tries.find(t => chars(t) <= TOP_MAX) || b.short;
+}
+// 넘버 옆 문구를 직접 쓰면 그 이름을 유지하고, 칸을 비우면 다시 자동 이름
+let autoName = true, autoNum = true;
+$("topText").addEventListener("input", () => { autoName = !$("topText").value.trim(); });
+$("num").addEventListener("input", () => { autoNum = !$("num").value; });
+// 랜덤 조합: 빵 1개(빵 없음 제외) + 토핑 1개 이상(지금 조합과 다르게)
+$("random").addEventListener("click", () => {
+  const key = comboKey();
+  do {
+    state.base = 1 + Math.floor(Math.random() * (BASES.length - 1));
+    const n = 1 + Math.floor(Math.random() * TOPPINGS.length);
+    state.toppings = new Set([...TOPPINGS.keys()].sort(() => Math.random() - 0.5).slice(0, n));
+  } while (comboKey() === key);
+  picked();
+});
+// 크기·회전은 1~10 정수 단계. 크기 5가 원래 크기(한 단계 12.5%), 회전 1이 0°(한 단계 36°)
+const LEVEL = {
+  bSize: n => { state.place.k = 0.5 + (n - 1) * 0.125; },
+  bRot: n => { state.place.r = ((n - 1) * 36 * Math.PI) / 180; },
+};
+for (const id of Object.keys(LEVEL)) {
+  const range = $(id), box = $(id + "N");
+  const apply = (v, fromBox) => {
+    const n = Math.min(10, Math.max(1, Math.round(+v || 1)));
+    range.value = n; if (!fromBox) box.value = n;
+    LEVEL[id](n); render();
+  };
+  range.addEventListener("input", () => apply(range.value));
+  box.addEventListener("input", () => { if (box.value !== "") apply(box.value, true); });
+  // 칸을 벗어날 때 범위를 벗어난 값이나 빈 값을 1~10 정수로 고침
+  box.addEventListener("change", () => apply(box.value));
+}
+
+// 스티커 위에서 빵 이미지를 끌어 옮기기(빵 영역 안을 눌렀을 때만)
+const toCanvas = e => { const r = cv.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
+function hit(q) {
+  if (BASES[state.base].none) return false;
+  const p = state.place, dx = q.x - p.x, dy = q.y - p.y, c = Math.cos(-p.r), s = Math.sin(-p.r), half = (1213 * p.k) / 2;
+  return Math.abs(dx * c - dy * s) <= half && Math.abs(dx * s + dy * c) <= half;
+}
+let drag = null;
+cv.addEventListener("pointerdown", e => {
+  const q = toCanvas(e);
+  if (!hit(q)) return;
+  drag = { dx: q.x - state.place.x, dy: q.y - state.place.y };
+  dragging = true;
+  cv.setPointerCapture(e.pointerId); cv.className = "grabbing";
+  render();
+});
+cv.addEventListener("pointermove", e => {
+  const q = toCanvas(e);
+  if (!drag) { cv.className = hit(q) ? "grab" : ""; return; }
+  // 빵 가운데가 스티커 밖으로 나가지 않게
+  state.place.x = Math.max(0, Math.min(W, q.x - drag.dx)); state.place.y = Math.max(0, Math.min(H, q.y - drag.dy));
+  render();
+});
+const endDrag = () => { drag = null; dragging = false; cv.className = ""; render(); };
+cv.addEventListener("pointerup", endDrag);
+cv.addEventListener("pointercancel", endDrag);
+
+// 넘버 배경색: 무지개는 직접 고를 수 없고 무작위(접속할 때, 랜덤 버튼)로만 나옴(목록 맨 끝이라 버튼 순서와 색 번호가 같음)
+const PICKABLE = COLORS.filter(c => !c.rainbow).length;
+COLORS.slice(0, PICKABLE).forEach((c, i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "swatch"; b.setAttribute("role", "radio"); b.setAttribute("aria-label", c.name); b.title = c.name;
+  b.style.background = c.fill;
+  b.addEventListener("click", () => { state.color = i; syncColors(); render(); });
+  $("colors").append(b);
+});
+// 무지개일 때는 아무 버튼도 선택되지 않고(키보드 초점은 첫 버튼), 화면 테두리 장식이 켜짐
+const syncColors = () => {
+  [...$("colors").children].forEach((b, i) => { b.setAttribute("aria-checked", String(i === state.color)); b.tabIndex = i === (state.color < PICKABLE ? state.color : 0) ? 0 : -1; });
+  document.body.classList.toggle("is-rainbow", state.color >= PICKABLE);
+};
+syncColors();
+// 랜덤: 지금과 다른 색 하나(무지개도 나올 수 있음)
+$("randomColor").addEventListener("click", () => {
+  const now = state.color;
+  while (state.color === now) state.color = crypto.getRandomValues(new Uint32Array(1))[0] % COLORS.length;
+  syncColors(); render();
+});
+// 라디오 묶음처럼 방향키로 색 이동
+$("colors").addEventListener("keydown", e => {
+  const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!d) return;
+  e.preventDefault();
+  state.color = state.color < PICKABLE ? (state.color + d + PICKABLE) % PICKABLE : d > 0 ? 0 : PICKABLE - 1;
+  syncColors(); $("colors").children[state.color].focus(); render();
+});
+
+// 문구 입력: 넘버는 숫자만, 한두 자리는 칸을 벗어날 때 앞을 0으로 채움
+$("num").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 3); changed(); });
+$("num").addEventListener("blur", e => { const v = e.target.value; if (v.length < 3 && (v || $("topText").value.trim())) { e.target.value = v ? v.padStart(3, "0") : "001"; changed(); } });
+$("topText").addEventListener("input", changed);
+function changed() {
+  $("topCount").textContent = `${chars($("topText").value.trim())}/${TOP_MAX}`;
+  // 이미 검사해서 오류가 보이는 칸은 고치는 즉시 다시 검사
+  if ($("baseErr").textContent || $("topErr").textContent) showErrors(check());
+  $("status").textContent = "";
+  render();
+}
+
+// 구매 전 검사: 빵은 필수, 넘버와 이름은 함께 쓰거나 둘 다 비움
+function check() {
+  const { num, top } = val(), errs = { base: "", top: "", topField: null };
+  if (BASES[state.base].none) errs.base = "빵을 골라 주세요.";
+  if (num && !top) { errs.top = "이름을 입력해 주세요."; errs.topField = "topText"; }
+  else if (top && !num) { errs.top = "넘버를 입력해 주세요."; errs.topField = "num"; }
+  else if (num && !/^\d{3}$/.test(num)) { errs.top = "넘버는 000~999로 입력해 주세요."; errs.topField = "num"; }
+  else if (chars(top) > TOP_MAX) { errs.top = `이름은 ${TOP_MAX}자까지입니다.`; errs.topField = "topText"; }
+  return errs;
+}
+function showErrors(errs) {
+  $("baseErr").textContent = errs.base; $("topErr").textContent = errs.top;
+  $("num").setAttribute("aria-invalid", String(errs.topField === "num"));
+  $("topText").setAttribute("aria-invalid", String(errs.topField === "topText"));
+}
+$("buy").addEventListener("click", () => {
+  const errs = check();
+  showErrors(errs);
+  const first = errs.base ? $("bases").children[0] : $(errs.topField);
+  const st = $("status");
+  if (first) { st.className = "status bad"; st.textContent = "입력을 확인해 주세요."; first.focus(); return; }
+  if (!STORE_URL) { st.className = "status"; st.textContent = "구매 페이지 준비 중입니다."; return; }
+  location.href = STORE_URL;
+});
+
+picked();
+window.__ready = true;
+</script>
+</body>
+</html>

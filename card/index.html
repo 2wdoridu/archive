@@ -28,6 +28,7 @@
   .field { display: grid; gap: 4px; font-size: 13px; color: #555; }
   .field input[type=range] { width: 100%; accent-color: #002fa7; }
   .seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 10px; background: #e6e2da; }
+  .seg.three { grid-template-columns: repeat(3, 1fr); }
   .seg button { padding: 6px 0; border: 0; border-radius: 8px; background: transparent; color: #555; font: inherit; font-size: 13px; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
   /* 버튼 위계: 이미지 저장(주) > 영상 저장·공유(보조) > 이미지 올리기(보조) > 처음으로(텍스트) */
@@ -90,9 +91,10 @@
     </button>
   </div>
   <div class="tool__body">
-    <div class="seg" role="group" aria-label="계절">
-      <button type="button" data-season="winter" aria-pressed="true">겨울</button>
-      <button type="button" data-season="spring" aria-pressed="false">봄</button>
+    <div class="seg three" role="group" aria-label="테마">
+      <button type="button" data-season="winter" aria-pressed="true">크리스마스</button>
+      <button type="button" data-season="spring" aria-pressed="false">벚꽃</button>
+      <button type="button" data-season="pepero" aria-pressed="false">빼빼로</button>
     </div>
     <canvas id="pv" width="336" height="336" aria-label="머그 인쇄 미리보기"></canvas>
     <p class="hint">끌어서 위치, 휠로 크기 조정</p>
@@ -149,9 +151,25 @@ camera.setViewOffset(W, H, 0, H * 0.07, W * 0.87, H * 0.87);
 const SUN_DIR = new THREE.Vector3(0.5, 0.26, -1).normalize();
 const LIGHT_TRAVEL = SUN_DIR.clone().negate();
 
-// 계절(겨울·봄)마다 보이는 물체 목록
-const SEASON_OBJ = { winter: [], spring: [] };
-const markSince = (season, from) => scene.children.slice(from).forEach(o => SEASON_OBJ[season].push(o));
+// 테마(크리스마스·벚꽃·빼빼로): 고른 테마의 물체만 만들고, 바꿀 때 이전 테마의 물체는 지움
+const THEMES = { winter: [], spring: [], pepero: [] }; // 테마별 만들기 함수
+let themeParts = [];
+const themeUpdates = []; // 현재 테마의 매 프레임 움직임
+// 만들기 함수가 장면에 더한 물체를 현재 테마 물체로 기록
+const keepSince = from => themeParts.push(...scene.children.slice(from));
+// 현재 테마의 물체를 장면에서 빼고 GPU 자원을 돌려줌
+function clearTheme() {
+  for (const part of themeParts) {
+    part.removeFromParent();
+    part.traverse(o => {
+      if (o.isInstancedMesh) o.dispose();
+      if (o.geometry) o.geometry.dispose();
+      for (const m of [].concat(o.material || [])) { if (m.map) m.map.dispose(); m.dispose(); }
+    });
+  }
+  themeParts = [];
+  themeUpdates.length = 0;
+}
 // 하늘·안개
 const HORIZON = new THREE.Color("#cfe2ee");
 function gradientTexture(stops, w = 4, h = 256) {
@@ -364,47 +382,94 @@ function fir(x, z, h, w, baseY = GROUND_Y) {
   }
   g.position.set(x, baseY, z); scene.add(g); return g;
 }
-const firFrom = scene.children.length;
-// 가까운 줄: 창 양옆을 크게 채움
-for (let x = -8.5; x < -3.2; x += 1.3 + rnd() * 0.8) fir(x, -9 - rnd() * 3, 8 + rnd() * 3, 1.5 + rnd() * 0.5);
-for (let x = 3.2; x < 9; x += 1.3 + rnd() * 0.8) fir(x, -9 - rnd() * 3, 8 + rnd() * 3, 1.5 + rnd() * 0.5);
-// 중간 줄
-for (let x = -12; x < 14; x += 1.6 + rnd() * 1.2) if (x < -4.5 || x > 1.5) fir(x, -17 - rnd() * 8, 7 + rnd() * 4, 1.4 + rnd() * 0.5);
-// 먼 줄: 안개에 묻히며 지평선을 가림
-for (let x = -45; x < 50; x += 1.0 + rnd() * 0.8) fir(x, -30 - rnd() * 14, 10 + rnd() * 7, 2 + rnd() * 0.8);
-for (let x = -60; x < 64; x += 1.4 + rnd() * 1.0) fir(x, -46 - rnd() * 16, 13 + rnd() * 8, 2.4 + rnd() * 0.9);
-markSince("winter", firFrom);
+THEMES.winter.push(() => {
+  seed2 = 7;
+  const firFrom = scene.children.length;
+  // 가까운 줄: 창 양옆을 크게 채움
+  for (let x = -8.5; x < -3.2; x += 1.3 + rnd() * 0.8) fir(x, -9 - rnd() * 3, 8 + rnd() * 3, 1.5 + rnd() * 0.5);
+  for (let x = 3.2; x < 9; x += 1.3 + rnd() * 0.8) fir(x, -9 - rnd() * 3, 8 + rnd() * 3, 1.5 + rnd() * 0.5);
+  // 중간 줄
+  for (let x = -12; x < 14; x += 1.6 + rnd() * 1.2) if (x < -4.5 || x > 1.5) fir(x, -17 - rnd() * 8, 7 + rnd() * 4, 1.4 + rnd() * 0.5);
+  // 먼 줄: 안개에 묻히며 지평선을 가림
+  for (let x = -45; x < 50; x += 1.0 + rnd() * 0.8) fir(x, -30 - rnd() * 14, 10 + rnd() * 7, 2 + rnd() * 0.8);
+  for (let x = -60; x < 64; x += 1.4 + rnd() * 1.0) fir(x, -46 - rnd() * 16, 13 + rnd() * 8, 2.4 + rnd() * 0.9);
+  keepSince(firFrom);
+});
 
-// 봄 배경: 둥근 수관의 연두 활엽수와 벚나무가 겹겹이, 멀리 낮은 언덕
-{
+// 둥근 수관 활엽수: 줄기 위에 각진 공 여러 개를 겹침
+function canopyTree(x, z, h, r, mats, trunkMat) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.08, r * 0.13, h * 0.6, 6), trunkMat);
+  trunk.position.y = h * 0.3; g.add(trunk);
+  const n = 4 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) {
+    const c = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(r * (0.55 + rnd() * 0.35), 1), 0.12), mats[Math.floor(rnd() * mats.length)]);
+    const a = rnd() * Math.PI * 2, d = r * 0.45 * rnd();
+    c.position.set(Math.cos(a) * d, h * 0.62 + rnd() * r * 0.6, Math.sin(a) * d);
+    c.castShadow = true; g.add(c);
+  }
+  g.position.set(x, GROUND_Y, z); scene.add(g);
+}
+// 나무로 뒤덮인 언덕: 언덕 위에 둥근 수관 덩어리를 빽빽하게 얹어 숲으로 덮인 산처럼 보이게 함
+function treeHills(colors, hillColor) {
+  const hills = [];
+  for (let i = 0; i < 11; i++) hills.push({ x: -90 + i * 18 + (rnd() - 0.5) * 6, z: -62 - rnd() * 10, r: 16 + rnd() * 8, sy: 0.4 });
+  for (let i = 0; i < 8; i++) hills.push({ x: -100 + i * 28 + rnd() * 8, z: -95 - rnd() * 10, r: 24 + rnd() * 8, sy: 0.36 });
+  const base = mat(hillColor), cols = colors.map(c => new THREE.Color(c)), blobs = [];
+  for (const h of hills) {
+    const m = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(h.r, 1), 0.06), base);
+    m.scale.set(1.8, h.sy, 1); m.position.set(h.x, GROUND_Y + 1, h.z); scene.add(m);
+    const n = Math.round(h.r * h.r * 0.75);
+    for (let k = 0; k < n; k++) {
+      const u = 0.08 + rnd() * 0.92, a = rnd() * Math.PI * 2, w = Math.sqrt(1 - u * u);
+      blobs.push({
+        x: h.x + Math.cos(a) * w * h.r * 1.8, y: GROUND_Y + 1 + u * h.r * h.sy, z: h.z + Math.sin(a) * w * h.r,
+        s: h.r * (0.08 + rnd() * 0.06), c: cols[Math.floor(rnd() * cols.length)],
+      });
+    }
+  }
+  const im = new THREE.InstancedMesh(jitter(new THREE.IcosahedronGeometry(1, 0), 0.2), new THREE.MeshStandardMaterial({ roughness: 0.92, flatShading: true }), blobs.length);
+  const d = new THREE.Object3D();
+  blobs.forEach((b, i) => {
+    d.position.set(b.x, b.y, b.z); d.rotation.set(0, b.x, 0); d.scale.set(b.s, b.s * 0.85, b.s); d.updateMatrix();
+    im.setMatrixAt(i, d.matrix); im.setColorAt(i, b.c);
+  });
+  scene.add(im);
+}
+// 창밖 숲: 창 양옆 가까운 줄부터 지평선까지 여러 줄을 촘촘히 심고, 맨 뒤는 나무로 뒤덮인 언덕
+function plantForest(tree, blobColors, hillColor) {
+  for (let x = -9; x < -3.5; x += 2 + rnd()) tree(x, -13 - rnd() * 3, 4.6 + rnd() * 1.4, 1.3 + rnd() * 0.4);
+  for (let x = 4; x < 10; x += 2 + rnd()) tree(x, -13 - rnd() * 3, 4.6 + rnd() * 1.4, 1.3 + rnd() * 0.4);
+  for (let x = -16; x < 17; x += 2 + rnd() * 1.2) tree(x, -22 - rnd() * 6, 5.5 + rnd() * 2, 1.8 + rnd() * 0.5);
+  for (let x = -26; x < 27; x += 2.2 + rnd() * 1.2) tree(x, -31 - rnd() * 7, 6 + rnd() * 2.5, 2.1 + rnd() * 0.6);
+  for (let x = -52; x < 53; x += 2.6 + rnd() * 1.4) tree(x, -42 - rnd() * 12, 6.5 + rnd() * 3, 2.5 + rnd() * 0.7);
+  treeHills(blobColors, hillColor);
+}
+// 봄 배경: 둥근 수관의 연두 활엽수와 벚나무가 겹겹이, 뒤로는 연두와 분홍으로 덮인 언덕
+THEMES.spring.push(() => {
+  seed2 = 2049631684;
   const springFrom = scene.children.length;
   const leafMats = ["#8fbf5a", "#a6cc6a", "#7cae4f", "#b9d77e"].map(c => mat(c));
   const cherryMats = ["#f5c4cf", "#f8d6dd", "#eeb2c1"].map(c => mat(c));
   const springTrunk = mat("#6e5240");
-  const roundTree = (x, z, h, r, cherry) => {
-    const g = new THREE.Group(), pick = cherry ? cherryMats : leafMats;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.08, r * 0.13, h * 0.6, 6), springTrunk);
-    trunk.position.y = h * 0.3; g.add(trunk);
-    const n = 4 + Math.floor(rnd() * 3);
-    for (let i = 0; i < n; i++) {
-      const c = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(r * (0.55 + rnd() * 0.35), 1), 0.12), pick[Math.floor(rnd() * pick.length)]);
-      const a = rnd() * Math.PI * 2, d = r * 0.45 * rnd();
-      c.position.set(Math.cos(a) * d, h * 0.62 + rnd() * r * 0.6, Math.sin(a) * d);
-      c.castShadow = true; g.add(c);
-    }
-    g.position.set(x, GROUND_Y, z); scene.add(g);
-  };
-  for (let x = -9; x < -3.5; x += 2 + rnd()) roundTree(x, -13 - rnd() * 3, 4.6 + rnd() * 1.4, 1.3 + rnd() * 0.4, rnd() < 0.45);
-  for (let x = 4; x < 10; x += 2 + rnd()) roundTree(x, -13 - rnd() * 3, 4.6 + rnd() * 1.4, 1.3 + rnd() * 0.4, rnd() < 0.45);
-  for (let x = -14; x < 15; x += 2.4 + rnd() * 1.4) if (x < -4.5 || x > 1.5) roundTree(x, -24 - rnd() * 8, 5.5 + rnd() * 2, 1.8 + rnd() * 0.5, rnd() < 0.35);
-  for (let x = -46; x < 50; x += 3 + rnd() * 2) roundTree(x, -42 - rnd() * 16, 6 + rnd() * 3, 2.4 + rnd() * 0.7, rnd() < 0.3);
-  const hillMats = ["#9cc070", "#a9c97d", "#8db565"].map(c => mat(c));
-  for (let i = 0; i < 9; i++) {
-    const hl = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(16 + rnd() * 8, 1), 0.08), hillMats[i % 3]);
-    hl.scale.set(1.8, 0.5, 1); hl.position.set(-70 + i * 18, GROUND_Y + 1, -62 - rnd() * 10); scene.add(hl);
-  }
-  markSince("spring", springFrom);
-}
+  plantForest((x, z, h, r) => canopyTree(x, z, h, r, rnd() < 0.4 ? cherryMats : leafMats, springTrunk),
+    ["#8fbf5a", "#a6cc6a", "#7cae4f", "#b9d77e", "#6f9e48", "#f5c4cf", "#eeb2c1"], "#6f9a48");
+  keepSince(springFrom);
+});
+
+// 빼빼로 배경: 맑은 가을 하늘 아래 붉은 단풍·주황·노란 은행 나무가 겹겹이, 뒤로는 단풍으로 덮인 언덕
+THEMES.pepero.push(() => {
+  seed2 = 1693818119;
+  const autumnFrom = scene.children.length;
+  const maple = ["#b0281c", "#c63a22", "#9a2420"].map(c => mat(c));
+  const amber = ["#d2661e", "#e08428", "#c4561c"].map(c => mat(c));
+  const ginkgo = ["#e2ad22", "#ecc23a", "#d49a1e"].map(c => mat(c));
+  const kinds = [maple, amber, ginkgo, amber, maple];
+  const autumnTrunk = mat("#4a3326");
+  plantForest((x, z, h, r) => canopyTree(x, z, h, r, kinds[Math.floor(rnd() * kinds.length)], autumnTrunk),
+    ["#b0281c", "#c63a22", "#d2661e", "#e08428", "#e2ad22", "#ecc23a", "#9a2420", "#6f7a36"], "#6a4a2a");
+  keepSince(autumnFrom);
+});
 
 // 꽃이 핀 나뭇가지: 돌출창 유리(z=-0.86)와 차양 앞 끝(z=-1.95)보다 바깥, 왼쪽 위에서 들어옴
 const branchFrom = scene.children.length;
@@ -453,16 +518,18 @@ const budMat = mat("#f4f6fb");
 const sproutMat = mat("#2f5a3a", { side: THREE.DoubleSide });
 const heartGeo = new THREE.IcosahedronGeometry(0.22, 0);
 const toCam = new THREE.Vector3();
+const camRest = camera.position.clone(); // 확대하기 전 카메라 자리: 가지 장식이 이쪽을 향함
 const berryMat = new THREE.MeshStandardMaterial({ color: "#b3202a", emissive: "#5a0c10", emissiveIntensity: 0.4, roughness: 0.4 });
-function flower(pos, size) {
+// make가 false면 같은 순서로 난수만 쓰고 장면에는 넣지 않음
+function flower(pos, size, make) {
   const snow = new THREE.Mesh(new THREE.IcosahedronGeometry(size * 0.9, 0), snowMat);
-  snow.scale.set(1.6, 0.6, 1.1); snow.position.copy(pos); snow.position.y += size * 0.3; scene.add(snow);
+  snow.scale.set(1.6, 0.6, 1.1); snow.position.copy(pos); snow.position.y += size * 0.3; if (make) scene.add(snow);
   if (rand() < 0.45) for (let k = 0; k < 3; k++) {
     const b = new THREE.Mesh(new THREE.IcosahedronGeometry(size * 0.28, 1), berryMat);
-    b.position.copy(pos).add(new THREE.Vector3((rand() - 0.5) * size * 1.2, -size * 0.4 - rand() * size * 0.3, (rand() - 0.5) * size)); scene.add(b);
+    b.position.copy(pos).add(new THREE.Vector3((rand() - 0.5) * size * 1.2, -size * 0.4 - rand() * size * 0.3, (rand() - 0.5) * size)); if (make) scene.add(b);
   }
 }
-function springFlower(pos, size) {
+function springFlower(pos, size, make) {
   const g = new THREE.Group();
   const pm = petalMats[Math.floor(rand() * petalMats.length)];
   const spin = rand() * Math.PI;
@@ -476,31 +543,83 @@ function springFlower(pos, size) {
   g.scale.setScalar(size);
   g.position.copy(pos);
   // 대체로 화면을 향하되 각자 조금씩 다른 방향
-  toCam.copy(camera.position).sub(pos).normalize().add(new THREE.Vector3((rand() - 0.5) * 1.4, (rand() - 0.3) * 1.2, (rand() - 0.5) * 0.6));
+  toCam.copy(camRest).sub(pos).normalize().add(new THREE.Vector3((rand() - 0.5) * 1.4, (rand() - 0.3) * 1.2, (rand() - 0.5) * 0.6));
   g.lookAt(pos.clone().add(toCam));
-  scene.add(g);
+  if (make) scene.add(g);
 }
 const springBudMat = mat("#e79aa0", { emissive: "#c2646d", emissiveIntensity: 0.25 });
 const springLeafMat = mat("#8fae5a", { side: THREE.DoubleSide });
-for (const tip of twigTips) {
-  const n = tip.tip ? 3 + Math.floor(rand() * 3) : (rand() < 0.7 ? 1 + Math.floor(rand() * 2) : 0);
-  for (let i = 0; i < n; i++) {
-    const p = tip.p.clone().add(new THREE.Vector3((rand() - 0.5) * 0.12, (rand() - 0.5) * 0.1, (rand() - 0.5) * 0.08));
-    const roll = rand(), size = 0.045 + rand() * 0.02;
-    for (const season of ["winter", "spring"]) {
-      const from = scene.children.length;
-      if (roll < 0.72) (season === "winter" ? flower : springFlower)(p, size);
-      else if (roll < 0.9) {
-        const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.022, 0), season === "winter" ? budMat : springBudMat);
-        b.scale.set(1, 1.4, 1); b.position.copy(p); scene.add(b);
-      } else {
-        const lf = new THREE.Mesh(petalGeo, season === "winter" ? sproutMat : springLeafMat);
-        lf.scale.set(0.07, 0.04, 0.04); lf.position.copy(p); lf.rotation.set(i, i * 2, i * 3); scene.add(lf);
+// 가지 끝 장식: 크리스마스는 눈·열매, 벚꽃은 꽃·봉오리·잎.
+// 두 테마가 한 난수 순서를 나눠 쓰므로 한 테마만 만들 때도 다른 테마 몫의 난수를 함께 씀
+const TIP_SEED = seed;
+function tipDeco(theme) {
+  for (const tip of twigTips) {
+    const n = tip.tip ? 3 + Math.floor(rand() * 3) : (rand() < 0.7 ? 1 + Math.floor(rand() * 2) : 0);
+    for (let i = 0; i < n; i++) {
+      const p = tip.p.clone().add(new THREE.Vector3((rand() - 0.5) * 0.12, (rand() - 0.5) * 0.1, (rand() - 0.5) * 0.08));
+      const roll = rand(), size = 0.045 + rand() * 0.02;
+      for (const season of ["winter", "spring"]) {
+        const make = season === theme;
+        if (roll < 0.72) (season === "winter" ? flower : springFlower)(p, size, make);
+        else if (!make) continue;
+        else if (roll < 0.9) {
+          const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.022, 0), season === "winter" ? budMat : springBudMat);
+          b.scale.set(1, 1.4, 1); b.position.copy(p); scene.add(b);
+        } else {
+          const lf = new THREE.Mesh(petalGeo, season === "winter" ? sproutMat : springLeafMat);
+          lf.scale.set(0.07, 0.04, 0.04); lf.position.copy(p); lf.rotation.set(i, i * 2, i * 3); scene.add(lf);
+        }
       }
-      markSince(season, from);
     }
   }
 }
+tipDeco(null); // 뒤에 오는 책·먼지 모양이 바뀌지 않도록 가지 장식 몫의 난수를 건너뜀
+for (const theme of ["winter", "spring"]) THEMES[theme].push(() => {
+  const keep = seed; seed = TIP_SEED;
+  const from = scene.children.length;
+  tipDeco(theme);
+  seed = keep;
+  toBranch(from);
+});
+
+// 단풍잎: 다섯 갈래로 뾰족하게 갈라진 잎, 잎맥을 따라 살짝 접힘
+const mapleShape = new THREE.Shape();
+[[0.02, -0.34], [0.12, -0.3], [0.38, -0.38], [0.32, -0.18], [0.5, -0.05], [0.36, 0.02], [0.48, 0.28], [0.24, 0.18], [0.2, 0.42], [0.08, 0.3], [0, 0.55],
+ [-0.08, 0.3], [-0.2, 0.42], [-0.24, 0.18], [-0.48, 0.28], [-0.36, 0.02], [-0.5, -0.05], [-0.32, -0.18], [-0.38, -0.38], [-0.12, -0.3], [-0.02, -0.34], [-0.02, -0.56], [0.02, -0.56]]
+  .forEach(([x, y], i) => (i ? mapleShape.lineTo(x, y) : mapleShape.moveTo(x, y)));
+const mapleGeo = new THREE.ShapeGeometry(mapleShape);
+// 은행잎: 가운데가 살짝 갈라진 부채꼴
+const ginkgoShape = new THREE.Shape();
+ginkgoShape.moveTo(0.015, -0.6); ginkgoShape.lineTo(0.015, -0.3);
+for (let i = 0; i <= 24; i++) {
+  const th = THREE.MathUtils.degToRad(28 + (124 * i) / 24), notch = Math.abs(i - 12) < 1.5 ? 0.12 : 0;
+  const r = 0.62 + Math.sin(i * 1.9) * 0.025 - notch;
+  ginkgoShape.lineTo(-Math.cos(th) * r * 0.95, -0.3 + Math.sin(th) * r);
+}
+ginkgoShape.lineTo(-0.015, -0.3); ginkgoShape.lineTo(-0.015, -0.6);
+const ginkgoGeo = new THREE.ShapeGeometry(ginkgoShape);
+for (const geo of [mapleGeo, ginkgoGeo]) {
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setZ(i, Math.abs(p.getX(i)) * 0.22 + (p.getY(i) ** 2) * 0.08);
+  geo.computeVertexNormals();
+}
+THEMES.pepero.push(() => {
+  const autumnFrom = scene.children.length;
+  let sd = 41; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const leafMats = ["#c63b26", "#d9582c", "#e5873a", "#e9b440", "#a8302a"].map(c => mat(c, { side: THREE.DoubleSide, emissive: c, emissiveIntensity: 0.18 }));
+  for (const tip of twigTips) {
+    const n = tip.tip ? 3 + Math.floor(r() * 3) : (r() < 0.6 ? 1 + Math.floor(r() * 2) : 0);
+    for (let i = 0; i < n; i++) {
+      const lf = new THREE.Mesh(mapleGeo, leafMats[Math.floor(r() * leafMats.length)]);
+      lf.position.copy(tip.p).add(new THREE.Vector3((r() - 0.5) * 0.12, (r() - 0.5) * 0.1 - 0.02, (r() - 0.5) * 0.08));
+      lf.scale.setScalar(0.075 + r() * 0.04);
+      toCam.copy(camRest).sub(lf.position).normalize().add(new THREE.Vector3((r() - 0.5) * 1.6, (r() - 0.5) * 1.2, (r() - 0.5) * 0.6));
+      lf.lookAt(lf.position.clone().add(toCam)); lf.rotateZ((r() - 0.5) * 2.4);
+      lf.castShadow = true; scene.add(lf);
+    }
+  }
+  toBranch(autumnFrom);
+});
 
 // 가지 전체를 뿌리 쪽을 축으로 흔들 수 있게 한 묶음으로
 const branchGroup = new THREE.Group();
@@ -508,6 +627,14 @@ const branchGroup = new THREE.Group();
   const kids = scene.children.slice(branchFrom);
   branchGroup.position.set(-4.4, 2.75, -2.6); scene.add(branchGroup);
   kids.forEach(o => branchGroup.attach(o));
+}
+// 테마별 가지 장식을 가지 묶음에 붙임: 흔들리지 않은 자세의 위치 그대로 들어감
+function toBranch(from) {
+  const holder = new THREE.Group();
+  holder.position.copy(branchGroup.position).negate();
+  scene.children.slice(from).forEach(o => holder.add(o));
+  branchGroup.add(holder);
+  themeParts.push(holder);
 }
 
 // 펜던트 조명: 우윳빛 유리 스쿨하우스 갓 두 개(불은 꺼져 있음, 빛은 창 햇살만)
@@ -655,8 +782,51 @@ function makeSpringArt(h = 512) {
   tulip(342, 210, "#f4a0c0", "#df7ea3");
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
+function makePeperoArt(h = 512) {
+  // 빼빼로 그림: 크림 바탕에 부채꼴로 펼친 초코 스틱 다발을 붉은 리본으로 묶음, 바탕에 흩어진 스프링클
+  const c = document.createElement("canvas"); c.width = 512; c.height = h;
+  const g = c.getContext("2d"), o = h - 512;
+  const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, "#f8efe2"); lg.addColorStop(1, "#efdcc3");
+  g.fillStyle = lg; g.fillRect(0, 0, 512, h);
+  let sd = 9; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const sprinkle = ["#d9473c", "#f2c14e", "#7fb4dc", "#f4a6b4", "#8cc47e"];
+  const dots = (x0, y0, w, hh, n, sz) => {
+    for (let i = 0; i < n; i++) {
+      g.save(); g.translate(x0 + r() * w, y0 + r() * hh); g.rotate(r() * Math.PI);
+      g.fillStyle = sprinkle[Math.floor(r() * sprinkle.length)]; g.beginPath(); g.roundRect(-sz, -sz * 0.35, sz * 2, sz * 0.7, sz * 0.35); g.fill(); g.restore();
+    }
+  };
+  dots(0, 0, 512, h, 70, 6);
+  const coats = [["#3b2216", "#5a3524"], ["#6a3c22", "#8a5634"], ["#f2e8d6", "#ffffff"], ["#e59aa6", "#f3bcc4"], ["#5a3220", "#7a4a2c"], ["#3b2216", "#5a3524"], ["#f2e8d6", "#ffffff"]];
+  const px = 256, py = 478 + o, L = 340;
+  coats.forEach(([base, hi], i) => {
+    const a = -0.42 + (0.84 * i) / (coats.length - 1);
+    g.save(); g.translate(px, py); g.rotate(a);
+    g.fillStyle = "#d9a867"; g.fillRect(-10, -92, 20, 92);
+    g.fillStyle = "rgba(120,70,30,.25)"; g.fillRect(4, -92, 6, 92);
+    g.fillStyle = base; g.beginPath(); g.roundRect(-12, -L, 24, L - 86, [12, 12, 3, 3]); g.fill();
+    for (let k = -12; k < 12; k += 6) { g.beginPath(); g.arc(k + 3, -86, 3 + r() * 2.5, 0, Math.PI); g.fill(); }
+    g.fillStyle = hi; g.globalAlpha = 0.55; g.fillRect(-8, -L + 14, 4, L - 110); g.globalAlpha = 1;
+    if (base === "#f2e8d6" || base === "#e59aa6") dots(-11, -L + 10, 22, L - 110, 26, 4);
+    if (base === "#5a3220") for (let k = 0; k < 22; k++) { g.fillStyle = r() > 0.5 ? "#c8955a" : "#e0b47a"; g.beginPath(); g.arc(-9 + r() * 18, -L + 14 + r() * (L - 110), 2 + r() * 2, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+  });
+  // 리본: 다발을 감은 띠, 두 고리, 두 꼬리
+  const red = "#c0202c", dark = "#8e1520", by = 392 + o;
+  g.fillStyle = red; g.fillRect(212, by - 12, 88, 24);
+  g.fillStyle = dark; g.fillRect(212, by + 6, 88, 6);
+  const loop = s => { g.save(); g.translate(256, by); g.scale(s, 1); g.fillStyle = red; g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(30, -60, 95, -42, 78, 0); g.bezierCurveTo(95, 42, 30, 40, 0, 0); g.fill();
+    g.fillStyle = dark; g.beginPath(); g.moveTo(6, 0); g.bezierCurveTo(30, -34, 60, -26, 56, 0); g.bezierCurveTo(40, -6, 20, -4, 6, 0); g.fill(); g.restore(); };
+  loop(1); loop(-1);
+  const tail = s => { g.save(); g.translate(256, by); g.scale(s, 1); g.fillStyle = red; g.beginPath(); g.moveTo(-4, 4); g.lineTo(18, 4); g.lineTo(58, 96); g.lineTo(42, 86); g.lineTo(30, 104); g.fill(); g.restore(); };
+  tail(1); tail(-1);
+  g.fillStyle = dark; g.beginPath(); g.roundRect(240, by - 16, 32, 32, 8); g.fill();
+  g.fillStyle = red; g.beginPath(); g.roundRect(243, by - 13, 26, 24, 7); g.fill();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 const ART = makeArt();
 const ART_SPRING = makeSpringArt();
+const ART_PEPERO = makePeperoArt();
 // 머그 인쇄 면: 이미지(없으면 예시 그림)를 원 안에 위치·크기·회전을 적용해 그림
 const printCanvas = document.createElement("canvas"); printCanvas.width = printCanvas.height = 512;
 const ART_ROUND = new THREE.CanvasTexture(printCanvas); ART_ROUND.colorSpace = THREE.SRGBColorSpace;
@@ -687,7 +857,7 @@ function drawFrame(img) {
   g.drawImage(img, (512 - img.width * k) / 2, (715 - img.height * k) / 2, img.width * k, img.height * k);
   FRAME_TEX.needsUpdate = true;
 }
-const FRAME_DEFAULT = makeArt(715).image, FRAME_SPRING = makeSpringArt(715).image;
+const FRAME_DEFAULT = makeArt(715).image, FRAME_SPRING = makeSpringArt(715).image, FRAME_PEPERO = makePeperoArt(715).image;
 drawFrame(FRAME_DEFAULT);
 const mug = new THREE.Group();
 const MR = 0.17, MH = 0.36;
@@ -839,168 +1009,292 @@ beam(new THREE.Vector3(2.3, 2.4, -0.2), 4.2, 0.35, 0.75, 0.3);
 beam(new THREE.Vector3(1.0, 2.1, -0.2), 3.6, 0.25, 0.55, 0.24);
 beam(new THREE.Vector3(-0.4, 2.5, -0.2), 3.4, 0.22, 0.5, 0.18);
 
-const decoFrom = scene.children.length;
-// 크리스마스 양말: 장화 모양 천에 흰 털 테두리
-function stocking(color, s = 1) {
-  const g = new THREE.Group();
-  const sh = new THREE.Shape();
-  sh.moveTo(0, 0); sh.lineTo(0.1, 0); sh.lineTo(0.1, -0.15);
-  sh.quadraticCurveTo(0.1, -0.19, 0.15, -0.2); sh.quadraticCurveTo(0.2, -0.21, 0.19, -0.26);
-  sh.quadraticCurveTo(0.17, -0.3, 0.07, -0.29); sh.quadraticCurveTo(0, -0.28, 0, -0.2); sh.lineTo(0, 0);
-  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.025, bevelEnabled: true, bevelSize: 0.008, bevelThickness: 0.008, bevelSegments: 2 }),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.85 }));
-  body.castShadow = true; g.add(body);
-  const cuff = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.05), new THREE.MeshStandardMaterial({ color: "#f7f3ec", roughness: 1 }));
-  cuff.position.set(0.05, -0.01, 0.0125); g.add(cuff);
-  const loop = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.003, 4, 10), new THREE.MeshStandardMaterial({ color: "#7a3a22" }));
-  loop.position.set(0.0, 0.03, 0.0125); g.add(loop);
-  g.scale.setScalar(s); return g;
-}
-// 좌하단 앞쪽에서 살짝 보이는 큰 눈사람 장식
-{
-  const sm = new THREE.Group();
-  // 도자기 장식품처럼 매끈하고 은은한 광택
-  const snowM = new THREE.MeshStandardMaterial({ color: "#f6f2ea", roughness: 0.32 });
-  const ball = (r, y) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), snowM); m.position.y = y; m.castShadow = m.receiveShadow = true; sm.add(m); return m; };
-  ball(0.62, 0.5); ball(0.46, 1.38); ball(0.36, 2.05);
-  // 장식품 얼굴: 작은 단추 눈과 짧은 코만
-  const dark = new THREE.MeshStandardMaterial({ color: "#2b2724", roughness: 0.4 });
-  for (const x of [-0.1, 0.1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 8), dark); e.position.set(x, 2.12, 0.335); sm.add(e); }
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.11, 12), new THREE.MeshStandardMaterial({ color: "#d9823e", roughness: 0.45 }));
-  nose.rotation.x = Math.PI / 2; nose.position.set(0, 2.05, 0.4); sm.add(nose);
-  for (const y of [1.45, 1.25]) { const btn = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), dark); btn.position.set(0, y, 0.45); sm.add(btn); }
-  const scarfM = new THREE.MeshStandardMaterial({ color: "#a8323a", roughness: 0.4 });
-  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.07, 8, 24), scarfM); scarf.rotation.x = Math.PI / 2; scarf.position.y = 1.76; sm.add(scarf);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.05), scarfM); tail.position.set(0.18, 1.55, 0.36); tail.rotation.z = 0.15; sm.add(tail);
-  // 짙은 남색 털모자: 둥근 몸통, 접어 올린 단, 흰 방울
-  // 니트 질감: 세로 골과 V자 코 무늬, 광택 없음
-  const knitTex = (base, dark) => {
-    const c = document.createElement("canvas"); c.width = 256; c.height = 128;
-    const g = c.getContext("2d"); g.fillStyle = base; g.fillRect(0, 0, 256, 128);
-    for (let x = 0; x < 256; x += 8) for (let y = 0; y < 128; y += 8) {
-      g.strokeStyle = dark; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 4, y + 6); g.lineTo(x + 8, y); g.stroke();
-    }
-    for (let i = 0; i < 900; i++) { g.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.08)"; g.fillRect(Math.random() * 256, Math.random() * 128, 2, 2); }
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); return t;
-  };
-  const knit = new THREE.MeshStandardMaterial({ map: knitTex("#3a4a6b", "#2a3754"), roughness: 1 });
-  const hat = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), knit); hat.scale.set(1, 1.15, 1); hat.position.y = 2.24; sm.add(hat);
-  const cuffH = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.32, 0.1, 20), new THREE.MeshStandardMaterial({ map: knitTex("#4b5d82", "#38476a"), roughness: 1 })); cuffH.position.y = 2.25; sm.add(cuffH);
-  const pom = new THREE.Mesh(new THREE.IcosahedronGeometry(0.085, 2), new THREE.MeshStandardMaterial({ color: "#f3eee6", roughness: 1, flatShading: true })); pom.position.y = 2.6; sm.add(pom);
-  const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.74, 0.14, 40), new THREE.MeshStandardMaterial({ color: "#a98a66", roughness: 0.55 }));
-  stand.position.y = -0.07; stand.receiveShadow = true; sm.add(stand);
-  sm.position.set(-1.5, -1.2, 1.0); sm.rotation.y = 0.05; scene.add(sm);
-}
+// 크리스마스 장식
+THEMES.winter.push(() => {
+  const decoFrom = scene.children.length;
+  // 크리스마스 양말: 장화 모양 천에 흰 털 테두리
+  function stocking(color, s = 1) {
+    const g = new THREE.Group();
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 0); sh.lineTo(0.1, 0); sh.lineTo(0.1, -0.15);
+    sh.quadraticCurveTo(0.1, -0.19, 0.15, -0.2); sh.quadraticCurveTo(0.2, -0.21, 0.19, -0.26);
+    sh.quadraticCurveTo(0.17, -0.3, 0.07, -0.29); sh.quadraticCurveTo(0, -0.28, 0, -0.2); sh.lineTo(0, 0);
+    const body = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.025, bevelEnabled: true, bevelSize: 0.008, bevelThickness: 0.008, bevelSegments: 2 }),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.85 }));
+    body.castShadow = true; g.add(body);
+    const cuff = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.05), new THREE.MeshStandardMaterial({ color: "#f7f3ec", roughness: 1 }));
+    cuff.position.set(0.05, -0.01, 0.0125); g.add(cuff);
+    const loop = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.003, 4, 10), new THREE.MeshStandardMaterial({ color: "#7a3a22" }));
+    loop.position.set(0.0, 0.03, 0.0125); g.add(loop);
+    g.scale.setScalar(s); return g;
+  }
+  // 좌하단 앞쪽에서 살짝 보이는 큰 눈사람 장식
+  {
+    const sm = new THREE.Group();
+    // 도자기 장식품처럼 매끈하고 은은한 광택
+    const snowM = new THREE.MeshStandardMaterial({ color: "#f6f2ea", roughness: 0.32 });
+    const ball = (r, y) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), snowM); m.position.y = y; m.castShadow = m.receiveShadow = true; sm.add(m); return m; };
+    ball(0.62, 0.5); ball(0.46, 1.38); ball(0.36, 2.05);
+    // 장식품 얼굴: 작은 단추 눈과 짧은 코만
+    const dark = new THREE.MeshStandardMaterial({ color: "#2b2724", roughness: 0.4 });
+    for (const x of [-0.1, 0.1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 8), dark); e.position.set(x, 2.12, 0.335); sm.add(e); }
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.11, 12), new THREE.MeshStandardMaterial({ color: "#d9823e", roughness: 0.45 }));
+    nose.rotation.x = Math.PI / 2; nose.position.set(0, 2.05, 0.4); sm.add(nose);
+    for (const y of [1.45, 1.25]) { const btn = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), dark); btn.position.set(0, y, 0.45); sm.add(btn); }
+    const scarfM = new THREE.MeshStandardMaterial({ color: "#a8323a", roughness: 0.4 });
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.07, 8, 24), scarfM); scarf.rotation.x = Math.PI / 2; scarf.position.y = 1.76; sm.add(scarf);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.42, 0.05), scarfM); tail.position.set(0.18, 1.55, 0.36); tail.rotation.z = 0.15; sm.add(tail);
+    // 짙은 남색 털모자: 둥근 몸통, 접어 올린 단, 흰 방울
+    // 니트 질감: 세로 골과 V자 코 무늬, 광택 없음
+    const knitTex = (base, dark) => {
+      const c = document.createElement("canvas"); c.width = 256; c.height = 128;
+      const g = c.getContext("2d"); g.fillStyle = base; g.fillRect(0, 0, 256, 128);
+      for (let x = 0; x < 256; x += 8) for (let y = 0; y < 128; y += 8) {
+        g.strokeStyle = dark; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 4, y + 6); g.lineTo(x + 8, y); g.stroke();
+      }
+      for (let i = 0; i < 900; i++) { g.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.08)"; g.fillRect(Math.random() * 256, Math.random() * 128, 2, 2); }
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); return t;
+    };
+    const knit = new THREE.MeshStandardMaterial({ map: knitTex("#3a4a6b", "#2a3754"), roughness: 1 });
+    const hat = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), knit); hat.scale.set(1, 1.15, 1); hat.position.y = 2.24; sm.add(hat);
+    const cuffH = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.32, 0.1, 20), new THREE.MeshStandardMaterial({ map: knitTex("#4b5d82", "#38476a"), roughness: 1 })); cuffH.position.y = 2.25; sm.add(cuffH);
+    const pom = new THREE.Mesh(new THREE.IcosahedronGeometry(0.085, 2), new THREE.MeshStandardMaterial({ color: "#f3eee6", roughness: 1, flatShading: true })); pom.position.y = 2.6; sm.add(pom);
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.74, 0.14, 40), new THREE.MeshStandardMaterial({ color: "#a98a66", roughness: 0.55 }));
+    stand.position.y = -0.07; stand.receiveShadow = true; sm.add(stand);
+    sm.position.set(-1.5, -1.2, 1.0); sm.rotation.y = 0.05; scene.add(sm);
+  }
 
-// 좌상단 옆벽: 액자 위로 늘어진 줄에 매단 양말
-{
-  const pts = [];
-  for (let i = 0; i <= 20; i++) { const t = i / 20; pts.push(new THREE.Vector3(-2.085, 3.28 - Math.sin(t * Math.PI) * 0.12, 0.05 + t * 1.25)); }
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: "#5a3a26" })));
-  [["#b3262c", 5], ["#f7f3ec", 10], ["#2f6b45", 15]].forEach(([c, i]) => {
-    const st = stocking(c, 0.9); st.rotation.y = Math.PI / 2; st.position.copy(pts[i]).add(new THREE.Vector3(0.02, -0.03, 0)); scene.add(st);
-  });
-}
-
-// 창 위쪽 실내 벽을 따라 늘어진 전구 줄
-{
-  const wireMat = new THREE.LineBasicMaterial({ color: "#2a2420" });
-  const wireMat2 = new THREE.MeshBasicMaterial({ color: "#2a2420" });
-  const bulbMats = ["#ffe2a6", "#ffd27a", "#fff3d6"].map(c => new THREE.MeshBasicMaterial({ color: c }));
-  const swags = [[OX0 - 0.1, 0.2], [0.2, 1.6], [1.6, OX1 + 0.1]];
-  for (const [x0, x1] of swags) {
+  // 좌상단 옆벽: 액자 위로 늘어진 줄에 매단 양말
+  {
     const pts = [];
-    for (let i = 0; i <= 24; i++) {
-      const t = i / 24, x = x0 + (x1 - x0) * t;
-      pts.push(new THREE.Vector3(x, OY1 + 0.16 - Math.sin(t * Math.PI) * 0.14, 0.03));
+    for (let i = 0; i <= 20; i++) { const t = i / 20; pts.push(new THREE.Vector3(-2.085, 3.28 - Math.sin(t * Math.PI) * 0.12, 0.05 + t * 1.25)); }
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: "#5a3a26" })));
+    [["#b3262c", 5], ["#f7f3ec", 10], ["#2f6b45", 15]].forEach(([c, i]) => {
+      const st = stocking(c, 0.9); st.rotation.y = Math.PI / 2; st.position.copy(pts[i]).add(new THREE.Vector3(0.02, -0.03, 0)); scene.add(st);
+    });
+  }
+
+  // 창 위쪽 실내 벽을 따라 늘어진 전구 줄
+  {
+    const wireMat = new THREE.LineBasicMaterial({ color: "#2a2420" });
+    const wireMat2 = new THREE.MeshBasicMaterial({ color: "#2a2420" });
+    const bulbMats = ["#ffe2a6", "#ffd27a", "#fff3d6"].map(c => new THREE.MeshBasicMaterial({ color: c }));
+    const swags = [[OX0 - 0.1, 0.2], [0.2, 1.6], [1.6, OX1 + 0.1]];
+    for (const [x0, x1] of swags) {
+      const pts = [];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24, x = x0 + (x1 - x0) * t;
+        pts.push(new THREE.Vector3(x, OY1 + 0.16 - Math.sin(t * Math.PI) * 0.14, 0.03));
+      }
+      scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), wireMat));
+      for (let i = 1; i < 24; i += 2) {
+        const b = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), bulbMats[i % 3]);
+        b.position.copy(pts[i]).add(new THREE.Vector3(0, -0.025, 0.01)); scene.add(b);
+      }
+      for (const i of [6, 12, 18]) {
+        const o = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshStandardMaterial({ color: i === 12 ? "#d9a441" : "#b3202a", roughness: 0.3, metalness: 0.4 }));
+        o.position.copy(pts[i]).add(new THREE.Vector3(0, -0.11, 0.02)); scene.add(o);
+        const str = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.08, 3), wireMat2);
+        str.position.copy(pts[i]).add(new THREE.Vector3(0, -0.05, 0.02)); scene.add(str);
+      }
     }
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), wireMat));
-    for (let i = 1; i < 24; i += 2) {
-      const b = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), bulbMats[i % 3]);
-      b.position.copy(pts[i]).add(new THREE.Vector3(0, -0.025, 0.01)); scene.add(b);
+  }
+
+  // 왼쪽 화분 고사리에 감은 작은 전구 줄
+  {
+    const g = new THREE.Group();
+    const bulbs = ["#ffe2a6", "#ffd27a", "#fff3d6"].map(c => new THREE.MeshBasicMaterial({ color: c }));
+    const wire = [];
+    for (let i = 0; i < 26; i++) {
+      const t = i / 25, a = t * Math.PI * 2 * 2.6, r = 0.12 + t * 0.26, y = 0.5 - t * 0.24 + Math.sin(i * 1.7) * 0.03;
+      const p = new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r * 0.85);
+      wire.push(p);
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), bulbs[i % 3]);
+      b.position.copy(p); g.add(b);
     }
-    for (const i of [6, 12, 18]) {
-      const o = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshStandardMaterial({ color: i === 12 ? "#d9a441" : "#b3202a", roughness: 0.3, metalness: 0.4 }));
-      o.position.copy(pts[i]).add(new THREE.Vector3(0, -0.11, 0.02)); scene.add(o);
-      const str = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.08, 3), wireMat2);
-      str.position.copy(pts[i]).add(new THREE.Vector3(0, -0.05, 0.02)); scene.add(str);
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(wire), new THREE.LineBasicMaterial({ color: "#3a3a2a" })));
+    g.position.set(-0.98, OY0, 0.12); scene.add(g);
+    const pl = new THREE.PointLight("#ffcf86", 0.9, 1.1, 2); pl.position.set(-0.98, OY0 + 0.45, 0.35); pl.userData.glow = 0.9; scene.add(pl);
+  }
+
+  // 크리스마스 장식: 가운데 유리창 리스, 창턱 작은 트리
+  {
+    const red = new THREE.MeshStandardMaterial({ color: "#b3202a", roughness: 0.45, emissive: "#3a0508", emissiveIntensity: 0.3 });
+    const gold = new THREE.MeshStandardMaterial({ color: "#d9a441", roughness: 0.3, metalness: 0.6, emissive: "#5a3a08", emissiveIntensity: 0.3 });
+    const greensX = ["#2f5a3a", "#3b6b44", "#4a7a4e"].map(c => mat(c));
+    // 리스: 가운데 칸 유리 안쪽에 리본으로 매닮
+    const wreath = new THREE.Group();
+    for (let i = 0; i < 34; i++) {
+      const a = (i / 34) * Math.PI * 2, rr = 0.2 + Math.sin(i * 2.3) * 0.02;
+      const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06 + (i % 3) * 0.01, 0), greensX[i % 3]);
+      leaf.position.set(Math.cos(a) * rr, Math.sin(a) * rr, Math.sin(i * 1.7) * 0.02); leaf.rotation.set(i, i * 0.7, 0); wreath.add(leaf);
+    }
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + 0.3;
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), i % 3 ? red : gold);
+      b.position.set(Math.cos(a) * 0.2, Math.sin(a) * 0.2, 0.05); wreath.add(b);
+    }
+    for (const s of [-1, 1]) {
+      const loop = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 4), red);
+      loop.rotation.z = s * Math.PI / 2; loop.position.set(s * 0.05, -0.2, 0.07); wreath.add(loop);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.01), red);
+      tail.rotation.z = s * 0.35; tail.position.set(s * 0.03, -0.29, 0.07); wreath.add(tail);
+    }
+    const knot = new THREE.Mesh(new THREE.SphereGeometry(0.024, 8, 6), red); knot.position.set(0, -0.2, 0.08); wreath.add(knot);
+    const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.02, OY1 - 2.72 - 0.22, 0.005), red);
+    ribbon.position.set(0, 0.22 + (OY1 - 2.72 - 0.22) / 2, 0); wreath.add(ribbon);
+    wreath.position.set(1.3, 2.72, FZ + 0.08); wreath.scale.setScalar(1.2);
+    wreath.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    scene.add(wreath);
+
+    // 창턱 작은 트리: 머그와 책 사이
+    const tree = new THREE.Group();
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 8), red); stand.position.y = 0.05; tree.add(stand);
+    const tiers = [[0.2, 0.26, 0.24], [0.155, 0.22, 0.4], [0.105, 0.18, 0.54]];
+    tiers.forEach(([r, h, y], i) => {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), greensX[i % 3]); c.position.y = y; c.castShadow = true; tree.add(c);
+    });
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), new THREE.MeshBasicMaterial({ color: "#ffe08a" }));
+    star.position.y = 0.66; star.scale.set(1, 1.2, 0.5); tree.add(star);
+    const lightsX = ["#ffe2a6", "#ff7a6a", "#fff3d6", "#ffd27a"].map(c => new THREE.MeshBasicMaterial({ color: c }));
+    for (let i = 0; i < 22; i++) {
+      const hh = i / 22, a = i * 2.4, y = 0.14 + hh * 0.48, r = 0.19 * (1 - hh * 0.75);
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 4), lightsX[i % 4]);
+      b.position.set(Math.cos(a) * r, y, Math.sin(a) * r); tree.add(b);
+    }
+    for (let i = 0; i < 7; i++) {
+      const hh = (i + 0.5) / 7, a = i * 1.9 + 1, r = 0.18 * (1 - hh * 0.75);
+      const o = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), i % 2 ? red : gold);
+      o.position.set(Math.cos(a) * r, 0.16 + hh * 0.44, Math.sin(a) * r); tree.add(o);
+    }
+    tree.position.set(2.14, OY0, 0.18); scene.add(tree);
+    const tl = new THREE.PointLight("#ffc27a", 0.6, 1.2, 2); tl.position.set(2.14, OY0 + 0.4, 0.4); tl.userData.glow = 0.6; scene.add(tl);
+    contact(2.14, 0.18, 0.3);
+  }
+
+  keepSince(decoFrom);
+});
+
+// 빼빼로 장식: 유리컵에 꽂은 초코 스틱, 리본 두른 선물 상자 두 개, 리본으로 묶은 스틱 묶음, 창 위 붉은 리본 줄
+THEMES.pepero.push(() => {
+  const peperoFrom = scene.children.length;
+  {
+    const ribbonMat = new THREE.MeshStandardMaterial({ color: "#c0202c", roughness: 0.32, emissive: "#3a0508", emissiveIntensity: 0.25, side: THREE.DoubleSide });
+    const biscuitMat = new THREE.MeshStandardMaterial({ color: "#d8a865", roughness: 0.85 });
+    const coatMat = {
+      dark: new THREE.MeshStandardMaterial({ color: "#3b2216", roughness: 0.32 }),
+      milk: new THREE.MeshStandardMaterial({ color: "#6a3c22", roughness: 0.34 }),
+      almond: new THREE.MeshStandardMaterial({ color: "#5a3220", roughness: 0.4 }),
+      white: new THREE.MeshStandardMaterial({ color: "#f1e6d2", roughness: 0.38 }),
+      berry: new THREE.MeshStandardMaterial({ color: "#e59aa6", roughness: 0.38 }),
+    };
+    const sprinkleMats = ["#d9473c", "#f2c14e", "#7fb4dc", "#f6f1e6", "#8cc47e"].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
+    const nutMat = mat("#c8955a");
+    let sd = 77; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    const sprinkleGeo = new THREE.BoxGeometry(0.0065, 0.0018, 0.0018), nutGeo = new THREE.IcosahedronGeometry(0.0042, 0);
+    // 스틱 하나: 아래는 과자 손잡이, 위는 초콜릿 코팅(종류에 따라 스프링클·아몬드 조각)
+    function stick(kind, len) {
+      const g = new THREE.Group(), hl = len * 0.24, cl = len - hl;
+      const bis = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.0085, hl, 8), biscuitMat); bis.position.y = hl / 2; g.add(bis);
+      const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.0105, 0.011, cl, 12), coatMat[kind]); coat.position.y = hl + cl / 2; g.add(coat);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0105, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), coatMat[kind]); cap.position.y = len; g.add(cap);
+      const edge = new THREE.Mesh(new THREE.TorusGeometry(0.0108, 0.0024, 4, 14), coatMat[kind]); edge.rotation.x = Math.PI / 2; edge.position.y = hl + 0.002; g.add(edge);
+      const bits = kind === "white" || kind === "berry" ? 16 : kind === "almond" ? 20 : 0;
+      for (let i = 0; i < bits; i++) {
+        const a = r() * Math.PI * 2, y = hl + 0.01 + r() * (cl - 0.015);
+        const b = new THREE.Mesh(kind === "almond" ? nutGeo : sprinkleGeo, kind === "almond" ? nutMat : sprinkleMats[Math.floor(r() * sprinkleMats.length)]);
+        b.position.set(Math.cos(a) * 0.0115, y, Math.sin(a) * 0.0115); b.rotation.set(r() * 3, a, r() * 3); g.add(b);
+      }
+      g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      return g;
+    }
+    // 리본 나비매듭: 두 고리, 두 꼬리, 가운데 매듭
+    function bow(s = 1) {
+      const g = new THREE.Group();
+      for (const side of [-1, 1]) {
+        const loop = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.008, 6, 14), ribbonMat);
+        loop.scale.set(1, 0.6, 0.45); loop.position.set(side * 0.028, 0.006, 0); loop.rotation.set(0, side * 0.35, side * 0.25); g.add(loop);
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.05, 0.002), ribbonMat);
+        tail.position.set(side * 0.012, -0.022, 0.004); tail.rotation.set(0.2, 0, side * 0.45); g.add(tail);
+      }
+      const knot = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), ribbonMat); knot.scale.set(1, 0.9, 0.7); g.add(knot);
+      g.scale.setScalar(s); g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      return g;
+    }
+    const kinds = ["dark", "white", "milk", "berry", "almond", "dark", "white", "milk", "almond", "berry", "dark", "milk"];
+
+    // 유리컵에 꽂은 스틱: 바닥 가운데에서 바깥으로 조금씩 기울어 퍼짐
+    {
+      const cup = new THREE.Group();
+      const glassM = new THREE.MeshStandardMaterial({ color: "#eef5f3", transparent: true, opacity: 0.2, roughness: 0.06, side: THREE.DoubleSide, depthWrite: false });
+      const wall = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.064, 0.17, 32, 1, true), glassM); wall.position.y = 0.085; cup.add(wall);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.064, 0.064, 0.016, 32), glassM); base.position.y = 0.008; cup.add(base);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.0025, 6, 32), new THREE.MeshStandardMaterial({ color: "#ffffff", transparent: true, opacity: 0.55, roughness: 0.1 }));
+      rim.rotation.x = Math.PI / 2; rim.position.y = 0.17; cup.add(rim);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.0735, 0.0715, 0.022, 32, 1, true), ribbonMat); band.position.y = 0.1; cup.add(band);
+      const b = bow(0.85); b.position.set(0, 0.1, 0.074); cup.add(b);
+      kinds.forEach((k, i) => {
+        const a = i * 2.39996, tilt = 0.1 + r() * 0.13, s = stick(k, 0.37 + r() * 0.07);
+        s.position.set(Math.cos(a) * 0.024, 0.016, Math.sin(a) * 0.024);
+        s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(Math.cos(a) * Math.sin(tilt), Math.cos(tilt), Math.sin(a) * Math.sin(tilt)));
+        cup.add(s);
+      });
+      cup.position.set(1.68, OY0, 0.18); cup.scale.setScalar(1.2); scene.add(cup);
+      contact(1.68, 0.18, 0.2);
+    }
+
+    // 선물 상자 두 개: 크림색 긴 상자 위에 초콜릿색 상자, 붉은 리본을 십자로 두르고 나비매듭
+    {
+      const gift = (w, h, d, color) => {
+        const g = new THREE.Group();
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: 0.7 }));
+        m.position.y = h / 2; m.castShadow = m.receiveShadow = true; g.add(m);
+        const lid = new THREE.Mesh(new THREE.BoxGeometry(w + 0.008, 0.018, d + 0.008), m.material); lid.position.y = h - 0.008; lid.castShadow = true; g.add(lid);
+        const bx = new THREE.Mesh(new THREE.BoxGeometry(w + 0.012, h + 0.006, 0.022), ribbonMat); bx.position.y = h / 2; g.add(bx);
+        const bz = new THREE.Mesh(new THREE.BoxGeometry(0.022, h + 0.006, d + 0.012), ribbonMat); bz.position.y = h / 2; g.add(bz);
+        return g;
+      };
+      const set = new THREE.Group();
+      const low = gift(0.36, 0.085, 0.17, "#f1e6d3"); low.rotation.y = 0.22; set.add(low);
+      const up = gift(0.27, 0.07, 0.115, "#4a2a1b"); up.position.set(0.01, 0.085, 0); up.rotation.y = -0.3; set.add(up);
+      const b = bow(1.25); b.position.set(0.01, 0.17, 0); b.rotation.set(-0.5, -0.3, 0); set.add(b);
+      set.position.set(-0.3, OY0, 0.24); set.scale.setScalar(1.4); scene.add(set);
+      contact(-0.3, 0.24, 0.4);
+    }
+
+    // 투명 포장지에 싸서 리본으로 묶은 스틱 다섯 개: 상자 앞에 비스듬히 누움
+    {
+      const bundle = new THREE.Group();
+      ["dark", "white", "berry", "milk", "almond"].forEach((k, i) => {
+        const s = stick(k, 0.3); s.position.set((i - 2) * 0.02, 0, Math.abs(i - 2) * -0.006 + (i % 2) * 0.012); bundle.add(s);
+      });
+      const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.34, 20, 1, true), new THREE.MeshStandardMaterial({ color: "#ffffff", transparent: true, opacity: 0.16, roughness: 0.05, side: THREE.DoubleSide, depthWrite: false }));
+      wrap.scale.set(1, 1, 0.6); wrap.position.y = 0.16; bundle.add(wrap);
+      const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.005, 6, 24), ribbonMat); tie.rotation.x = Math.PI / 2; tie.scale.set(1, 0.6, 1); tie.position.y = 0.11; bundle.add(tie);
+      const b = bow(0.9); b.position.set(0, 0.11, 0.032); bundle.add(b);
+      bundle.rotation.set(-Math.PI / 2, 0, -1.25); bundle.rotateY(0.1);
+      bundle.position.set(-0.4, OY0 + 0.04, 0.5); bundle.scale.setScalar(1.35); scene.add(bundle);
+      contact(-0.24, 0.48, 0.26);
+    }
+
+    // 창 위 실내 벽을 따라 늘어진 붉은 리본 줄과 이음매마다 나비매듭
+    {
+      const swags = [[OX0 - 0.1, 0.2], [0.2, 1.6], [1.6, OX1 + 0.1]], w = 0.034;
+      for (const [x0, x1] of swags) {
+        const pos = [], idx = [];
+        for (let i = 0; i <= 32; i++) {
+          const t = i / 32, x = x0 + (x1 - x0) * t, y = OY1 + 0.16 - Math.sin(t * Math.PI) * 0.15, tw = Math.sin(t * Math.PI * 3) * 0.01;
+          pos.push(x, y + w / 2, 0.03 + tw, x, y - w / 2, 0.03 - tw);
+          if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+        }
+        const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+        scene.add(new THREE.Mesh(geo, ribbonMat));
+      }
+      for (const x of [OX0 - 0.1, 0.2, 1.6, OX1 + 0.1]) { const b = bow(1.5); b.position.set(x, OY1 + 0.16, 0.05); scene.add(b); }
     }
   }
-}
-
-// 왼쪽 화분 고사리에 감은 작은 전구 줄
-{
-  const g = new THREE.Group();
-  const bulbs = ["#ffe2a6", "#ffd27a", "#fff3d6"].map(c => new THREE.MeshBasicMaterial({ color: c }));
-  const wire = [];
-  for (let i = 0; i < 26; i++) {
-    const t = i / 25, a = t * Math.PI * 2 * 2.6, r = 0.12 + t * 0.26, y = 0.5 - t * 0.24 + Math.sin(i * 1.7) * 0.03;
-    const p = new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r * 0.85);
-    wire.push(p);
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), bulbs[i % 3]);
-    b.position.copy(p); g.add(b);
-  }
-  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(wire), new THREE.LineBasicMaterial({ color: "#3a3a2a" })));
-  g.position.set(-0.98, OY0, 0.12); scene.add(g);
-  const pl = new THREE.PointLight("#ffcf86", 0.9, 1.1, 2); pl.position.set(-0.98, OY0 + 0.45, 0.35); pl.userData.glow = 0.9; scene.add(pl);
-}
-
-// 크리스마스 장식: 가운데 유리창 리스, 창턱 작은 트리
-{
-  const red = new THREE.MeshStandardMaterial({ color: "#b3202a", roughness: 0.45, emissive: "#3a0508", emissiveIntensity: 0.3 });
-  const gold = new THREE.MeshStandardMaterial({ color: "#d9a441", roughness: 0.3, metalness: 0.6, emissive: "#5a3a08", emissiveIntensity: 0.3 });
-  const greensX = ["#2f5a3a", "#3b6b44", "#4a7a4e"].map(c => mat(c));
-  // 리스: 가운데 칸 유리 안쪽에 리본으로 매닮
-  const wreath = new THREE.Group();
-  for (let i = 0; i < 34; i++) {
-    const a = (i / 34) * Math.PI * 2, rr = 0.2 + Math.sin(i * 2.3) * 0.02;
-    const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06 + (i % 3) * 0.01, 0), greensX[i % 3]);
-    leaf.position.set(Math.cos(a) * rr, Math.sin(a) * rr, Math.sin(i * 1.7) * 0.02); leaf.rotation.set(i, i * 0.7, 0); wreath.add(leaf);
-  }
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2 + 0.3;
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), i % 3 ? red : gold);
-    b.position.set(Math.cos(a) * 0.2, Math.sin(a) * 0.2, 0.05); wreath.add(b);
-  }
-  for (const s of [-1, 1]) {
-    const loop = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 4), red);
-    loop.rotation.z = s * Math.PI / 2; loop.position.set(s * 0.05, -0.2, 0.07); wreath.add(loop);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.01), red);
-    tail.rotation.z = s * 0.35; tail.position.set(s * 0.03, -0.29, 0.07); wreath.add(tail);
-  }
-  const knot = new THREE.Mesh(new THREE.SphereGeometry(0.024, 8, 6), red); knot.position.set(0, -0.2, 0.08); wreath.add(knot);
-  const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.02, OY1 - 2.72 - 0.22, 0.005), red);
-  ribbon.position.set(0, 0.22 + (OY1 - 2.72 - 0.22) / 2, 0); wreath.add(ribbon);
-  wreath.position.set(1.3, 2.72, FZ + 0.08); wreath.scale.setScalar(1.2);
-  wreath.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  scene.add(wreath);
-
-  // 창턱 작은 트리: 머그와 책 사이
-  const tree = new THREE.Group();
-  const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 8), red); stand.position.y = 0.05; tree.add(stand);
-  const tiers = [[0.2, 0.26, 0.24], [0.155, 0.22, 0.4], [0.105, 0.18, 0.54]];
-  tiers.forEach(([r, h, y], i) => {
-    const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), greensX[i % 3]); c.position.y = y; c.castShadow = true; tree.add(c);
-  });
-  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), new THREE.MeshBasicMaterial({ color: "#ffe08a" }));
-  star.position.y = 0.66; star.scale.set(1, 1.2, 0.5); tree.add(star);
-  const lightsX = ["#ffe2a6", "#ff7a6a", "#fff3d6", "#ffd27a"].map(c => new THREE.MeshBasicMaterial({ color: c }));
-  for (let i = 0; i < 22; i++) {
-    const hh = i / 22, a = i * 2.4, y = 0.14 + hh * 0.48, r = 0.19 * (1 - hh * 0.75);
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 4), lightsX[i % 4]);
-    b.position.set(Math.cos(a) * r, y, Math.sin(a) * r); tree.add(b);
-  }
-  for (let i = 0; i < 7; i++) {
-    const hh = (i + 0.5) / 7, a = i * 1.9 + 1, r = 0.18 * (1 - hh * 0.75);
-    const o = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), i % 2 ? red : gold);
-    o.position.set(Math.cos(a) * r, 0.16 + hh * 0.44, Math.sin(a) * r); tree.add(o);
-  }
-  tree.position.set(2.14, OY0, 0.18); scene.add(tree);
-  const tl = new THREE.PointLight("#ffc27a", 0.6, 1.2, 2); tl.position.set(2.14, OY0 + 0.4, 0.4); tl.userData.glow = 0.6; scene.add(tl);
-  contact(2.14, 0.18, 0.3);
-}
-
-markSince("winter", decoFrom);
+  keepSince(peperoFrom);
+});
 
 // 빛 속 먼지
 const dustTex = (() => {
@@ -1105,17 +1399,16 @@ const postPass = composer.passes[composer.passes.length - 1];
 const clock = new THREE.Clock();
 // 먼지: 원래 자리를 기준으로 천천히 떠다님
 const dustArr = dustGeo.attributes.position.array, dustBase = dustArr.slice();
-// 전구: 같은 재질끼리 묶여 조금씩 다른 박자로 깜빡임
-const twinkle = [];
 // 전구마다 재질을 따로 두어 각자 다른 색·밝기·박자로 반짝임
+const twinkle = [];
 const bulbColors = ["#ffd27a", "#ff8a6a", "#fff1d0", "#ffb3c8", "#c8f0a8", "#a8d8ff"];
-scene.traverse(o => {
+const collectTwinkle = () => { twinkle.length = 0; for (const part of themeParts) part.traverse(o => {
   if (o.isMesh && o.material && o.material.isMeshBasicMaterial && o.geometry.type === "SphereGeometry") {
     o.material = o.material.clone();
     const pick = () => new THREE.Color(bulbColors[Math.floor(Math.random() * bulbColors.length)]);
     twinkle.push({ m: o.material, base: pick(), alt: pick(), phase: Math.random() * 100, speed: 0.6 + Math.random() * 1.8, hue: 0.15 + Math.random() * 0.4 });
   }
-});
+}); };
 // 바람에 가지에서 털려 날리는 눈가루
 const flakeN = 70, flakeArr = new Float32Array(flakeN * 3), flakeSpeed = new Float32Array(flakeN);
 const spawnFlake = (i, anyHeight) => {
@@ -1147,27 +1440,102 @@ const snowTex = (() => {
 const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute("position", new THREE.BufferAttribute(snowArr, 3));
 const snowPts = new THREE.Points(snowGeo, new THREE.PointsMaterial({ size: 0.15, map: snowTex, color: "#ffffff", transparent: true, depthWrite: false, opacity: 1 }));
 scene.add(snowPts);
-// 계절 바꾸기: 하늘·빛·숲 색·가지·장식·눈(봄에는 꽃잎)·기본 그림
+// 봄 꽃잎: 끝이 살짝 패인 벚꽃잎. 뒤집히며 흔들리고, 면이 누울수록 천천히 떨어지며, 돌풍에 함께 쓸려 감
+const petalShape = new THREE.Shape();
+petalShape.moveTo(0, -0.5);
+petalShape.bezierCurveTo(0.42, -0.35, 0.5, 0.2, 0.18, 0.5);
+petalShape.lineTo(0, 0.38);
+petalShape.lineTo(-0.18, 0.5);
+petalShape.bezierCurveTo(-0.5, 0.2, -0.42, -0.35, 0, -0.5);
+const petalFallGeo = new THREE.ShapeGeometry(petalShape, 8);
+{
+  // 가운데를 따라 살짝 오목하게 휘어 입체감을 줌
+  const p = petalFallGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setZ(i, (p.getX(i) ** 2) * 0.35 - (p.getY(i) + 0.5) * 0.08);
+  petalFallGeo.computeVertexNormals();
+}
+// 떨어지는 잎 묶음: 각자 다른 속도로 뒤집히며, 면이 누울수록 천천히 떨어지고, 좌우로 흔들리다 돌풍에 함께 쓸려 감
+function makeFaller(geo, colors, n, o) {
+  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.6, side: THREE.DoubleSide, emissive: o.emissive, emissiveIntensity: o.glow }), n);
+  mesh.frustumCulled = false;
+  const cols = colors.map(c => new THREE.Color(c)), st = [], box = { x0: -6, x1: 8, y0: -2.5, y1: 4.4 }, dummy = new THREE.Object3D();
+  const spawn = (i, anywhere) => {
+    const p = st[i] || (st[i] = {});
+    if (Math.random() < o.fromBranch && twigTips.length && !anywhere) {
+      const tip = twigTips[Math.floor(Math.random() * twigTips.length)].p;
+      p.x = tip.x + (Math.random() - 0.5) * 0.2; p.y = tip.y; p.z = tip.z;
+      p.size = o.tipSize[0] + Math.random() * o.tipSize[1];
+    } else {
+      p.x = box.x0 + Math.random() * (box.x1 - box.x0);
+      p.y = anywhere ? box.y0 + Math.random() * (box.y1 - box.y0) : box.y1 + Math.random() * 0.6;
+      p.z = -1.3 - Math.pow(Math.random(), 1.8) * 14;
+      p.size = o.airSize[0] + Math.random() * o.airSize[1];
+    }
+    p.rx = Math.random() * 6.28; p.ry = Math.random() * 6.28; p.rz = Math.random() * 6.28;
+    p.sx = (Math.random() - 0.5) * o.spin[0]; p.sy = (Math.random() - 0.5) * o.spin[1]; p.sz = (Math.random() - 0.5) * o.spin[2];
+    p.ph = Math.random() * 100; p.fr = 0.5 + Math.random() * 0.9; p.amp = 0.12 + Math.random() * 0.22;
+    p.drift = 0.05 + Math.random() * 0.12;
+    mesh.setColorAt(i, cols[Math.floor(Math.random() * cols.length)]);
+  };
+  for (let i = 0; i < n; i++) spawn(i, true);
+  mesh.instanceColor.needsUpdate = true;
+  scene.add(mesh);
+  const update = (t, dt, gust) => {
+    for (let i = 0; i < n; i++) {
+      const p = st[i];
+      p.rx += p.sx * dt * (1 + gust * 2); p.ry += p.sy * dt; p.rz += p.sz * dt * (1 + gust);
+      // 면이 수평에 가까우면 공기 저항으로 느리게, 세워지면 빠르게
+      const flat = Math.abs(Math.cos(p.rx)), sway = Math.sin(t * p.fr + p.ph);
+      p.y -= (o.fall[0] + o.fall[1] * (1 - flat)) * dt;
+      p.x += (sway * p.amp + p.drift + gust * 0.9) * dt;
+      p.z += Math.cos(t * p.fr * 0.7 + p.ph) * 0.06 * dt;
+      if (p.y < box.y0 || p.x > box.x1 + 0.5) spawn(i, false);
+      dummy.position.set(p.x, p.y + Math.sin(t * p.fr * 2 + p.ph) * 0.02, p.z);
+      // 흔들리는 방향으로 진자처럼 기욺
+      dummy.rotation.set(p.rx, p.ry, p.rz + sway * o.swing);
+      dummy.scale.setScalar(p.size);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+  };
+  return { mesh, update };
+}
+const addFaller = f => { themeParts.push(f.mesh); themeUpdates.push(f.update); };
+THEMES.spring.push(() => addFaller(makeFaller(petalFallGeo, ["#fde3e7", "#f8cfd7", "#f4bccb", "#fff1f2", "#efaebf"], 420,
+  { emissive: "#f3c6cc", glow: 0.25, fromBranch: 0.3, tipSize: [0.07, 0.03], airSize: [0.09, 0.08], spin: [3, 2.2, 1.6], fall: [0.07, 0.16], swing: 0 })));
+// 단풍잎·은행잎: 꽃잎보다 크고 무거워 천천히 돌며 진자처럼 크게 흔들림
+THEMES.pepero.push(() => addFaller(makeFaller(mapleGeo, ["#c63b26", "#d9582c", "#e5873a", "#b8302a", "#e07a30"], 120,
+  { emissive: "#7a2a10", glow: 0.15, fromBranch: 0.45, tipSize: [0.1, 0.04], airSize: [0.13, 0.1], spin: [1.8, 1.2, 1.0], fall: [0.1, 0.22], swing: 0.6 })));
+THEMES.pepero.push(() => addFaller(makeFaller(ginkgoGeo, ["#e9b440", "#f0c95a", "#dca23a", "#f3d57a"], 90,
+  { emissive: "#7a5a10", glow: 0.15, fromBranch: 0, tipSize: [0.1, 0.04], airSize: [0.11, 0.08], spin: [2.2, 1.6, 1.2], fall: [0.09, 0.2], swing: 0.5 })));
+
+// 테마 바꾸기: 하늘·빛·숲 색·가지·장식·떨어지는 것(눈·꽃잎·낙엽)·기본 그림
 const SEASONS = {
   winter: { sky: scene.background, horizon: "#cfe2ee", fog: [18, 120], sun: ["#fff1dc", 6.2], hemi: ["#d8eaf7", "#a08a74", 1.6], ground: "#e6eaf1", top: "#fbfcfe", topGlow: 0.18, fall: "#ffffff", fallSize: 0.15, fallCount: 1, art: ART.image, frame: FRAME_DEFAULT },
-  spring: { sky: gradientTexture([[0, "#8fb6d6"], [0.45, "#d9d3bf"], [0.72, "#f3d3a2"], [1, "#f3d3a2"]]), horizon: "#f1d6ad", fog: [16, 110], sun: ["#ffd49a", 5.4], hemi: ["#cfdcea", "#9c7652", 1.3], ground: "#93b864", top: "#86a85a", topGlow: 0, fall: "#f6c9cf", fallSize: 0.09, fallCount: 0.25, art: ART_SPRING.image, frame: FRAME_SPRING },
+  spring: { sky: gradientTexture([[0, "#5f9fd8"], [0.45, "#9cc6ea"], [0.72, "#cfe4f2"], [1, "#cfe4f2"]]), horizon: "#cfe3ef", fog: [24, 160], sun: ["#fff0d6", 5.8], hemi: ["#cfdcea", "#9c7652", 1.3], ground: "#93b864", top: "#86a85a", topGlow: 0, fall: "#f6c9cf", fallSize: 0.09, fallCount: 0.25, art: ART_SPRING.image, frame: FRAME_SPRING },
+  pepero: { sky: gradientTexture([[0, "#3d84d0"], [0.45, "#8bbce6"], [0.72, "#d6e5ee"], [1, "#d6e5ee"]]), horizon: "#d2e3ee", fog: [26, 170], sun: ["#fff0d6", 5.6], hemi: ["#d6e2ee", "#8a5a3a", 1.35], ground: "#b0834a", top: "#86a85a", topGlow: 0, fall: "#ffffff", fallSize: 0.09, fallCount: 0.25, art: ART_PEPERO.image, frame: FRAME_PEPERO },
 };
 let season = "winter";
 function setSeason(name) {
+  if (name === season && themeParts.length) return;
   season = name; const S = SEASONS[name];
   scene.background = S.sky; scene.fog.color.set(S.horizon); scene.fog.near = S.fog[0]; scene.fog.far = S.fog[1];
   sun.color.set(S.sun[0]); sun.intensity = S.sun[1];
   hemi.color.set(S.hemi[0]); hemi.groundColor.set(S.hemi[1]); hemi.intensity = S.hemi[2];
   groundMat.color.set(S.ground);
   firSnow.color.set(S.top); firSnow.emissiveIntensity = S.topGlow;
-  for (const k of ["winter", "spring"]) for (const o of SEASON_OBJ[k]) o.visible = k === name;
+  clearTheme();
+  for (const build of THEMES[name]) build();
+  collectTwinkle(); collectGlows();
   snowPts.material.color.set(S.fall); snowPts.material.size = S.fallSize;
   snowGeo.setDrawRange(0, Math.floor(snowN * S.fallCount));
   flakePts.material.color.set(S.fall);
+  snowPts.visible = flakePts.visible = name === "winter";
   // 사용자가 올린 이미지가 없을 때만 기본 그림을 바꿈
-  if (!printState.custom) { printState.img = S.art; printState.rim = name === "winter"; drawPrint(); drawFrame(S.frame); }
+  if (!printState.custom) { printState.img = S.art; printState.rim = name !== "spring"; drawPrint(); drawFrame(S.frame); }
 }
-setSeason("winter");
 // 확대해서 보기: 빵과 머그 쪽으로 카메라가 다가감(0 전체, 1 확대)
 const zoom = { v: 0, to: 0, from: 0, start: 0,
   fromPos: camera.position.clone(), fromLook: new THREE.Vector3(0.5, 1.92, 0),
@@ -1175,7 +1543,8 @@ const zoom = { v: 0, to: 0, from: 0, start: 0,
 const ease = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 // 화분·미니 트리 전구가 비추는 빛: 밝기와 색이 잔잔하게 바뀜
 const glows = [];
-scene.traverse(o => { if (o.isPointLight && o.userData.glow) glows.push({ l: o, base: o.color.clone(), alt: new THREE.Color(glows.length ? "#ffb0a0" : "#d6f0b0"), phase: glows.length * 2.4 }); });
+const collectGlows = () => { glows.length = 0; for (const part of themeParts) part.traverse(o => { if (o.isPointLight && o.userData.glow) glows.push({ l: o, base: o.color.clone(), alt: new THREE.Color(glows.length ? "#ffb0a0" : "#d6f0b0"), phase: glows.length * 2.4 }); }); };
+setSeason("winter");
 // 빵 접시와 머그의 가운데 지점
 const pan = { x: 0 };
 // 녹화 중에는 매 장면을 저장용 캔버스에 합성
@@ -1187,6 +1556,7 @@ function tick() {
   const t = clock.getElapsedTime(), dt = Math.min(0.05, t - last); last = t;
   // 바람: 잔잔한 흔들림 위에 7초마다 짧은 돌풍
   const gust = Math.pow(Math.max(0, Math.sin(t * Math.PI * 2 / 7)), 6);
+  for (const u of themeUpdates) u(t, dt, gust);
   branchGroup.rotation.z = Math.sin(t * 0.9) * 0.002 + Math.sin(t * 2.3) * 0.001 + gust * 0.011 * Math.sin(t * 5.5);
   branchGroup.rotation.x = gust * 0.005 * Math.sin(t * 4.3);
   // 먼지
