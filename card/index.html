@@ -11,7 +11,9 @@
   html, body { height: 100%; overflow: hidden; }
   body { display: flex; font: 15px/1.5 "Pretendard", "Malgun Gothic", sans-serif; }
   .stage { flex: 1; min-width: 0; height: 100%; background: #14110e; }
-  .stage canvas { width: 100%; height: 100%; max-width: none; margin: 0; object-fit: cover; object-position: center; }
+  .stage { position: relative; overflow: hidden; }
+  .stage .logo { position: absolute; left: 0; top: 0; width: auto; height: auto; transform-origin: 0 0; pointer-events: none; }
+  .stage canvas:not(.logo) { width: 100%; height: 100%; max-width: none; margin: 0; object-fit: cover; object-position: center; }
   .tool { flex: 0 0 320px; box-sizing: border-box; height: 100%; background: #f4f4f1; border-left: 1px solid #d9d9d4; color: #111; display: flex; flex-direction: column; transition: flex-basis .3s ease; overflow: hidden; }
   .tool__head { display: flex; align-items: center; justify-content: space-between; padding: 24px 24px 8px; }
   .back { display: inline-block; margin-bottom: 6px; color: #84847f; font-size: 13px; text-decoration: none; }
@@ -76,7 +78,7 @@
 </head>
 <body>
 
-<main class="stage" id="stage"></main>
+<main class="stage" id="stage"><canvas class="logo" id="logo" aria-label="빵의시간"></canvas></main>
 <aside class="tool" aria-label="머그 이미지 조정">
   <div class="tool__head">
     <div>
@@ -362,6 +364,7 @@ function fir(x, z, h, w, baseY = GROUND_Y) {
   }
   g.position.set(x, baseY, z); scene.add(g); return g;
 }
+const firFrom = scene.children.length;
 // 가까운 줄: 창 양옆을 크게 채움
 for (let x = -8.5; x < -3.2; x += 1.3 + rnd() * 0.8) fir(x, -9 - rnd() * 3, 8 + rnd() * 3, 1.5 + rnd() * 0.5);
 for (let x = 3.2; x < 9; x += 1.3 + rnd() * 0.8) fir(x, -9 - rnd() * 3, 8 + rnd() * 3, 1.5 + rnd() * 0.5);
@@ -370,6 +373,39 @@ for (let x = -12; x < 14; x += 1.6 + rnd() * 1.2) if (x < -4.5 || x > 1.5) fir(x
 // 먼 줄: 안개에 묻히며 지평선을 가림
 for (let x = -45; x < 50; x += 1.0 + rnd() * 0.8) fir(x, -30 - rnd() * 14, 10 + rnd() * 7, 2 + rnd() * 0.8);
 for (let x = -60; x < 64; x += 1.4 + rnd() * 1.0) fir(x, -46 - rnd() * 16, 13 + rnd() * 8, 2.4 + rnd() * 0.9);
+markSince("winter", firFrom);
+
+// 봄 배경: 둥근 수관의 연두 활엽수와 벚나무가 겹겹이, 멀리 낮은 언덕
+{
+  const springFrom = scene.children.length;
+  const leafMats = ["#8fbf5a", "#a6cc6a", "#7cae4f", "#b9d77e"].map(c => mat(c));
+  const cherryMats = ["#f5c4cf", "#f8d6dd", "#eeb2c1"].map(c => mat(c));
+  const springTrunk = mat("#6e5240");
+  const roundTree = (x, z, h, r, cherry) => {
+    const g = new THREE.Group(), pick = cherry ? cherryMats : leafMats;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.08, r * 0.13, h * 0.6, 6), springTrunk);
+    trunk.position.y = h * 0.3; g.add(trunk);
+    const n = 4 + Math.floor(rnd() * 3);
+    for (let i = 0; i < n; i++) {
+      const c = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(r * (0.55 + rnd() * 0.35), 1), 0.12), pick[Math.floor(rnd() * pick.length)]);
+      const a = rnd() * Math.PI * 2, d = r * 0.45 * rnd();
+      c.position.set(Math.cos(a) * d, h * 0.62 + rnd() * r * 0.6, Math.sin(a) * d);
+      c.castShadow = true; g.add(c);
+    }
+    g.position.set(x, GROUND_Y, z); scene.add(g);
+  };
+  for (let x = -9; x < -3.5; x += 2 + rnd()) roundTree(x, -13 - rnd() * 3, 4.6 + rnd() * 1.4, 1.3 + rnd() * 0.4, rnd() < 0.45);
+  for (let x = 4; x < 10; x += 2 + rnd()) roundTree(x, -13 - rnd() * 3, 4.6 + rnd() * 1.4, 1.3 + rnd() * 0.4, rnd() < 0.45);
+  for (let x = -14; x < 15; x += 2.4 + rnd() * 1.4) if (x < -4.5 || x > 1.5) roundTree(x, -24 - rnd() * 8, 5.5 + rnd() * 2, 1.8 + rnd() * 0.5, rnd() < 0.35);
+  for (let x = -46; x < 50; x += 3 + rnd() * 2) roundTree(x, -42 - rnd() * 16, 6 + rnd() * 3, 2.4 + rnd() * 0.7, rnd() < 0.3);
+  const hillMats = ["#9cc070", "#a9c97d", "#8db565"].map(c => mat(c));
+  for (let i = 0; i < 9; i++) {
+    const hl = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(16 + rnd() * 8, 1), 0.08), hillMats[i % 3]);
+    hl.scale.set(1.8, 0.5, 1); hl.position.set(-70 + i * 18, GROUND_Y + 1, -62 - rnd() * 10); scene.add(hl);
+  }
+  markSince("spring", springFrom);
+}
+
 // 꽃이 핀 나뭇가지: 돌출창 유리(z=-0.86)와 차양 앞 끝(z=-1.95)보다 바깥, 왼쪽 위에서 들어옴
 const branchFrom = scene.children.length;
 const barkMat = mat("#3f2c21", { roughness: 0.95 });
@@ -595,13 +631,28 @@ function makeArt(h = 512) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 function makeSpringArt(h = 512) {
+  // 봄 그림: 연노랑 바탕에 튤립 세 송이와 잎, 아래쪽 흙 띠(위로 늘린 만큼 바탕이 넓어짐)
   const c = document.createElement("canvas"); c.width = 512; c.height = h;
   const g = c.getContext("2d"), o = h - 512;
-  const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, "#002fa7"); lg.addColorStop(1, "#3f63c4");
+  const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, "#fbf3d8"); lg.addColorStop(1, "#f3e3b3");
   g.fillStyle = lg; g.fillRect(0, 0, 512, h);
-  g.fillStyle = "#f4f4f1"; g.beginPath(); g.arc(280, 200 + o, 90, 0, Math.PI * 2); g.fill();
-  g.fillStyle = "#0a33a9"; g.beginPath(); g.arc(320, 180 + o, 84, 0, Math.PI * 2); g.fill();
-  g.fillStyle = "#14268a"; g.fillRect(0, 390 + o, 512, 122);
+  g.fillStyle = "#c98f5f"; g.fillRect(0, 440 + o, 512, 72);
+  const leaf = (x, y, w, hh, lean) => {
+    g.fillStyle = "#5f9a4e"; g.beginPath(); g.moveTo(x, y);
+    g.quadraticCurveTo(x + lean - w, y - hh * 0.6, x + lean, y - hh); g.quadraticCurveTo(x + lean + w * 0.4, y - hh * 0.5, x + 8, y); g.fill();
+  };
+  const tulip = (x, top, color, dark) => {
+    g.strokeStyle = "#4f8a42"; g.lineWidth = 7; g.lineCap = "round";
+    g.beginPath(); g.moveTo(x, 445 + o); g.quadraticCurveTo(x - 6, (top + 445) / 2 + o, x, top + 40 + o); g.stroke();
+    g.fillStyle = color; g.beginPath();
+    g.moveTo(x - 34, top + o); g.lineTo(x - 17, top + 16 + o); g.lineTo(x, top - 6 + o); g.lineTo(x + 17, top + 16 + o); g.lineTo(x + 34, top + o);
+    g.quadraticCurveTo(x + 38, top + 52 + o, x, top + 58 + o); g.quadraticCurveTo(x - 38, top + 52 + o, x - 34, top + o); g.fill();
+    g.fillStyle = dark; g.beginPath(); g.moveTo(x, top - 6 + o); g.lineTo(x + 12, top + 30 + o); g.quadraticCurveTo(x, top + 50 + o, x - 12, top + 30 + o); g.fill();
+  };
+  leaf(150, 445 + o, 30, 150, -40); leaf(360, 445 + o, 28, 140, 40); leaf(250, 445 + o, 24, 110, 10);
+  tulip(170, 200, "#f08a8a", "#d96a6e");
+  tulip(256, 150, "#f6c24e", "#e3a530");
+  tulip(342, 210, "#f4a0c0", "#df7ea3");
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 const ART = makeArt();
@@ -993,6 +1044,10 @@ const capTex = (() => {
   g.shadowBlur = 0; g.drawImage(src, (W - dw) / 2, (200 - dh) / 2, dw, dh);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 })();
+// 로고 띠(가로 W, 세로 200)의 위쪽 끝이 장면 위에서 LOGO_Y만큼 아래에 오도록 배치
+const LOGO_Y = 154;
+const logoEl = document.getElementById("logo");
+logoEl.width = W; logoEl.height = 200; logoEl.getContext("2d").drawImage(capTex.image, 0, 0);
 // 후처리: 빛 번짐, 색 보정, 가장자리 어둡게, 질감
 const composer = new EffectComposer(renderer);
 composer.setPixelRatio(1); composer.setSize(W, H);
@@ -1041,8 +1096,6 @@ composer.addPass(new ShaderPass({
       float d = distance(vUv, vec2(0.58, 0.32));
       c *= mix(1.0, 0.86, smoothstep(0.35, 0.95, d));
       c += (hash(vUv * 1000.) - 0.5) * 0.035;
-      vec2 capUv = vec2(vUv.x - (uCapX - 0.5), (vUv.y * 1080. + 46.) / 200.);
-      if (capUv.y > 0. && capUv.y < 1.) { vec4 cap = texture2D(tCap, capUv); c = mix(c, cap.rgb, cap.a); }
       gl_FragColor = vec4(c, 1.);
     }`,
 }));
@@ -1097,7 +1150,7 @@ scene.add(snowPts);
 // 계절 바꾸기: 하늘·빛·숲 색·가지·장식·눈(봄에는 꽃잎)·기본 그림
 const SEASONS = {
   winter: { sky: scene.background, horizon: "#cfe2ee", fog: [18, 120], sun: ["#fff1dc", 6.2], hemi: ["#d8eaf7", "#a08a74", 1.6], ground: "#e6eaf1", top: "#fbfcfe", topGlow: 0.18, fall: "#ffffff", fallSize: 0.15, fallCount: 1, art: ART.image, frame: FRAME_DEFAULT },
-  spring: { sky: gradientTexture([[0, "#8fb6d6"], [0.45, "#d9d3bf"], [0.72, "#f3d3a2"], [1, "#f3d3a2"]]), horizon: "#f1d6ad", fog: [16, 110], sun: ["#ffd49a", 5.4], hemi: ["#cfdcea", "#9c7652", 1.3], ground: "#8f9a5c", top: "#86a85a", topGlow: 0, fall: "#f6c9cf", fallSize: 0.09, fallCount: 0.25, art: ART_SPRING.image, frame: FRAME_SPRING },
+  spring: { sky: gradientTexture([[0, "#8fb6d6"], [0.45, "#d9d3bf"], [0.72, "#f3d3a2"], [1, "#f3d3a2"]]), horizon: "#f1d6ad", fog: [16, 110], sun: ["#ffd49a", 5.4], hemi: ["#cfdcea", "#9c7652", 1.3], ground: "#93b864", top: "#86a85a", topGlow: 0, fall: "#f6c9cf", fallSize: 0.09, fallCount: 0.25, art: ART_SPRING.image, frame: FRAME_SPRING },
 };
 let season = "winter";
 function setSeason(name) {
@@ -1125,6 +1178,8 @@ const glows = [];
 scene.traverse(o => { if (o.isPointLight && o.userData.glow) glows.push({ l: o, base: o.color.clone(), alt: new THREE.Color(glows.length ? "#ffb0a0" : "#d6f0b0"), phase: glows.length * 2.4 }); });
 // 빵 접시와 머그의 가운데 지점
 const pan = { x: 0 };
+// 녹화 중에는 매 장면을 저장용 캔버스에 합성
+const composeHook = { fn: null };
 const FOCUS = new THREE.Vector3(0.78, OY0 + 0.1, 0.22), focusPt = new THREE.Vector3();
 const sunBase = SUN_DIR.clone();
 let last = 0;
@@ -1179,10 +1234,12 @@ function tick() {
   const left = Math.min(0, Math.max(minLeft, cw / 2 - fx + pan.x));
   pan.x = left - (cw / 2 - fx); // 끝을 넘지 않도록 드래그 값도 함께 묶음
   cv.style.objectPosition = left + "px 50%";
-  // 로고도 같은 지점 아래에 오도록
-  postPass.uniforms.uCapX.value = (focusPt.x + 1) / 2;
+  // 화면의 로고는 보이는 영역 가로 가운데, 장면 하단 기준 높이에 고정
+  const top = (ch - H * k) / 2;
+  logoEl.style.transform = `translate(${cw / 2 - (W * k) / 2}px, ${top + (H - LOGO_Y) * k}px) scale(${k})`;
   postPass.uniforms.uTime.value = t;
   composer.render();
+  if (composeHook.fn) composeHook.fn();
   window.__ready = true;
   requestAnimationFrame(tick);
 }
@@ -1203,7 +1260,12 @@ tick();
   });
   const toast = msg => { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2600); };
   const download = (blob, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
-  const snapshot = () => new Promise(r => renderer.domElement.toBlob(r, "image/png"));
+  // 저장본: 1920×1080 장면 위에 로고를 프레임 가로 가운데에 합성
+  const out = document.createElement("canvas"); out.width = W; out.height = H;
+  const og = out.getContext("2d");
+  const compose = () => { og.drawImage(renderer.domElement, 0, 0); og.drawImage(capTex.image, 0, H - LOGO_Y); };
+  composeHook.fn = null;
+  const snapshot = () => new Promise(r => { compose(); out.toBlob(r, "image/png"); });
   $("save").addEventListener("click", async () => { download(await snapshot(), "bread-time-card.png"); toast("이미지를 저장했습니다"); });
   $("share").addEventListener("click", async () => {
     const file = new File([await snapshot()], "bread-time-card.png", { type: "image/png" });
@@ -1215,10 +1277,12 @@ tick();
     const btn = $("video");
     if (btn.disabled) return;
     const type = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find(t => MediaRecorder.isTypeSupported(t));
-    const rec = new MediaRecorder(renderer.domElement.captureStream(30), { mimeType: type, videoBitsPerSecond: 8e6 });
+    compose(); composeHook.fn = compose;
+    const rec = new MediaRecorder(out.captureStream(30), { mimeType: type, videoBitsPerSecond: 8e6 });
     const chunks = [];
     rec.ondataavailable = e => e.data.size && chunks.push(e.data);
     rec.onstop = () => {
+      composeHook.fn = null;
       download(new Blob(chunks, { type }), "bread-time-card." + (type.startsWith("video/mp4") ? "mp4" : "webm"));
       btn.disabled = false; btn.textContent = "5초 영상 저장"; toast("영상을 저장했습니다");
     };
