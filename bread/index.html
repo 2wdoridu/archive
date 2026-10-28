@@ -6,50 +6,104 @@
 <title>나만의 빵 스티커</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
+  /* 패널 기준값: 따뜻한 회색 한 계열, 강조색 하나, 모서리는 입력·작은 버튼 8 / 카드·큰 버튼 12, 간격은 4의 배수 */
+  :root {
+    --panel: #faf9f6; --surface: #fff; --line: #e8e5df; --line-strong: #d5d1c9;
+    --ink: #1d1c1a; --ink-2: #55524c; --muted: #8e8a82;
+    --accent: #002fa7; --accent-hover: #00268a; --accent-weak: rgba(0, 47, 167, .07);
+    --danger: #c8372d; --r-sm: 8px; --r-md: 12px; --ease: 160ms ease;
+  }
   html, body { margin: 0; height: 100%; }
-  body { display: flex; overflow: hidden; background: #e9e7e2; color: #111; font: 15px/1.5 "Pretendard", "Malgun Gothic", sans-serif; }
+  body { display: flex; overflow: hidden; background: #e9e7e2; color: var(--ink); font: 15px/1.5 "Pretendard", "Malgun Gothic", sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
   /* 왼쪽 스티커 미리보기, 오른쪽 조정 패널(휴대폰은 위아래) */
   .stage { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 32px; box-sizing: border-box; }
-  .stage canvas { display: block; max-width: 100%; max-height: 100%; aspect-ratio: 1400 / 1880; background: #fff; box-shadow: 0 12px 40px rgba(0,0,0,.18); touch-action: none; cursor: default; }
-  .stage canvas.grab { cursor: grab; }
-  .stage canvas.grabbing { cursor: grabbing; }
-  .tool { flex: 0 0 360px; box-sizing: border-box; height: 100%; display: flex; flex-direction: column; background: #f4f4f1; border-left: 1px solid #d9d9d4; }
-  .tool__head { padding: 24px 24px 8px; }
-  .back { display: inline-block; margin-bottom: 6px; color: #84847f; font-size: 13px; text-decoration: none; }
-  .back:hover { color: #002fa7; }
-  .tool__head h1 { margin: 0; font-size: 18px; font-weight: 700; }
-  .tool__body { flex: 1; overflow-y: auto; padding: 8px 24px 24px; display: flex; flex-direction: column; gap: 28px; }
-  .tool__foot { padding: 16px 24px 24px; border-top: 1px solid #d9d9d4; display: grid; gap: 10px; }
-  section { display: grid; gap: 10px; }
-  h2 { margin: 0; font-size: 14px; font-weight: 700; }
-  .note { margin: 0; color: #84847f; font-size: 12px; }
+  #sticker { display: block; max-width: 100%; max-height: 100%; aspect-ratio: 1400 / 1880; background: #fff; box-shadow: 0 2px 6px rgba(60, 45, 20, .06), 0 18px 48px rgba(60, 45, 20, .16); touch-action: none; cursor: default; }
+  #sticker.grab { cursor: grab; }
+  #sticker.grabbing { cursor: grabbing; }
+  .tool { flex: 0 0 360px; box-sizing: border-box; height: 100%; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line); }
+  .tool__head { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+  .back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 500; text-decoration: none; transition: color var(--ease); }
+  .back:hover { color: var(--accent); }
+  .tool__head h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+  .tool__body { flex: 1; overflow-y: auto; padding: 0 24px; }
+  section { padding: 20px 0 24px; border-bottom: 1px solid var(--line); display: grid; gap: 12px; }
+  section:last-child { border-bottom: 0; }
+  /* 구역 머리: 제목 왼쪽, 보조 동작 오른쪽 */
+  .sec-head { display: flex; align-items: center; justify-content: space-between; min-height: 28px; }
+  h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: -.005em; }
+  .link { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; margin-right: -10px; border: 0; border-radius: var(--r-sm); background: none; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; transition: background var(--ease); }
+  .link:hover { background: var(--accent-weak); }
+  .link:active { transform: translateY(1px); }
+  .link:disabled { color: var(--muted); background: none; cursor: default; }
+  .link svg, .btn svg, .back svg { width: 16px; height: 16px; flex: none; }
+  /* 메뉴 카테고리 칩: 필터라서 파랑 대신 검정으로 표시 */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background var(--ease), color var(--ease), border-color var(--ease); }
+  .chip:hover { border-color: var(--ink-2); }
+  .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .note { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .note:empty { display: none; }
+  .pick[hidden] { display: none; }
+  /* 빵·토핑 카드 */
   .picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .pick { padding: 4px; border: 2px solid transparent; border-radius: 10px; background: #fff; cursor: pointer; }
-  .pick img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; }
-  .pick span { display: block; margin-top: 2px; font-size: 11px; color: #555; text-align: center; line-height: 1.3; min-height: 2.6em; word-break: keep-all; }
-  .pick[aria-pressed="true"] { border-color: #002fa7; }
-  .pick:disabled { opacity: .4; cursor: default; }
-  .pick:focus-visible, .swatch:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid #002fa7; outline-offset: 2px; }
-  .field { display: grid; gap: 4px; font-size: 13px; color: #555; }
-  .field input[type=range] { width: 100%; accent-color: #002fa7; }
-  .lv { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .num { width: 56px; box-sizing: border-box; padding: 4px 6px; border: 1px solid #cfcfca; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; color: #111; text-align: center; }
-  .btn--small { padding: 4px 12px; border-radius: 8px; font-size: 12px; }
-  .row { display: grid; grid-template-columns: 84px 1fr; gap: 8px; }
-  .text { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #cfcfca; border-radius: 8px; background: #fff; font: inherit; font-size: 14px; color: #111; }
-  .text[aria-invalid="true"] { border-color: #d92d20; }
-  .count { justify-self: end; font-size: 11px; color: #84847f; }
-  .swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
-  .swatch { aspect-ratio: 1; padding: 0; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #cfcfca; cursor: pointer; }
-  .swatch[aria-checked="true"] { box-shadow: 0 0 0 2px #002fa7; }
-  .err { margin: 0; color: #d92d20; font-size: 12px; }
+  .pick { position: relative; display: grid; gap: 6px; padding: 6px 6px 8px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); cursor: pointer; transition: border-color var(--ease), box-shadow var(--ease), transform var(--ease); }
+  .pick:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+  .pick:active { transform: scale(.98); }
+  .pick img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: var(--r-sm); }
+  .pick span { font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--ink-2); text-align: center; min-height: 2.6em; display: grid; place-items: start center; word-break: keep-all; }
+  .pick[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .pick[aria-pressed="true"] span { color: var(--ink); font-weight: 600; }
+  /* 고른 카드의 체크 표시 */
+  .pick[aria-pressed="true"]::after { content: ""; position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.2l2.3 2.3 4.7-4.9' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px no-repeat; }
+  .pick:disabled { opacity: .35; cursor: default; transform: none; border-color: var(--line); }
+  /* 크기·회전: 이름과 값이 한 줄, 그 아래 슬라이더 */
+  .ctrl { display: grid; grid-template-columns: 1fr auto; align-items: center; row-gap: 8px; }
+  .ctrl label { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+  .ctrl input[type=range] { grid-column: 1 / -1; }
+  .num { width: 44px; height: 28px; box-sizing: border-box; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--surface); font-size: 13px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; -moz-appearance: textfield; transition: border-color var(--ease), box-shadow var(--ease); }
+  .num::-webkit-inner-spin-button, .num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; margin: 0; background: none; cursor: pointer; --p: 50%; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--accent), var(--accent)) 0 0 / var(--p) 100% no-repeat, #e3dfd8; }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(var(--accent), var(--accent)) 0 0 / var(--p) 100% no-repeat, #e3dfd8; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%; background: #fff; border: 1px solid var(--line-strong); box-shadow: 0 1px 3px rgba(40, 30, 10, .18); transition: transform var(--ease); }
+  input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 1px solid var(--line-strong); box-shadow: 0 1px 3px rgba(40, 30, 10, .18); }
+  input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.1); }
+  /* 문구: 넘버·이름 입력칸 */
+  .fields { display: grid; grid-template-columns: 76px 1fr; gap: 8px; }
+  .fld { display: grid; gap: 6px; }
+  .fld > span:first-child { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+  .box { position: relative; display: block; }
+  .text { width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--surface); font-size: 14px; transition: border-color var(--ease), box-shadow var(--ease); }
+  #num { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+  #topText { padding-right: 48px; }
+  .num:focus, .text:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .text[aria-invalid="true"] { border-color: var(--danger); }
+  /* 글자 수는 이름 칸 안쪽 오른쪽 */
+  .count { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
+  /* 넘버 색 */
+  .swatches { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+  .swatch { width: 100%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1); cursor: pointer; transition: transform var(--ease), box-shadow var(--ease); }
+  .swatch:hover { transform: scale(1.1); }
+  .swatch[aria-checked="true"] { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1), 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+  .err { margin: 0; color: var(--danger); font-size: 12px; }
   .err:empty { display: none; }
-  .btn { padding: 11px 12px; border: 1px solid #cfcfca; border-radius: 10px; background: #fff; color: #111; font: inherit; font-size: 14px; cursor: pointer; }
-  .btn:disabled { color: #b5b5b0; cursor: default; }
-  .btn--primary { border-color: #002fa7; background: #002fa7; color: #fff; font-size: 15px; font-weight: 700; }
-  .status { margin: 0; font-size: 13px; color: #555; }
+  .pick:focus-visible, .swatch:focus-visible, .btn:focus-visible, .link:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* 아래 버튼: 보조(저장·공유) 둘, 주(구매) 하나 */
+  .tool__foot { padding: 16px 24px 20px; border-top: 1px solid var(--line); background: var(--panel); display: grid; gap: 8px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; transition: background var(--ease), border-color var(--ease), transform var(--ease); }
+  .btn:hover { border-color: var(--ink-2); }
+  .btn:active { transform: scale(.98); }
+  .btn--primary { height: 50px; border-color: var(--accent); background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; }
+  .btn--primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+  body.is-rainbow #share { border-color: transparent; background: linear-gradient(90deg, #ff7eb3, #ffa26b, #ffd86b, #9cf0b8, #6fd3ff, #8f9bff, #d38bff, #ff7eb3) 0 0 / 200% 100%; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); animation: share-shine 3s linear infinite; }
+  @keyframes share-shine { to { background-position: 200% 0; } }
+  .status { margin: 0; font-size: 12.5px; color: var(--ink-2); text-align: center; }
   .status:empty { display: none; }
-  .status.bad { color: #d92d20; }
+  .status.bad { color: var(--danger); }
   /* 무지개가 뽑혔을 때 화면 테두리를 도는 축하 장식 */
   @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
   .party { display: none; position: fixed; inset: 0; z-index: 50; pointer-events: none; }
@@ -64,59 +118,113 @@
   /* 띠를 따라 도는 흰 반짝임 */
   .party b { background: conic-gradient(from var(--spin), transparent 0 78%, rgba(255,255,255,.95) 86%, transparent 94%); animation-duration: 2.2s; animation-direction: reverse; mix-blend-mode: screen; }
   @keyframes party-spin { to { --spin: 360deg; } }
-  @media (prefers-reduced-motion: reduce) { .party i, .party b { animation: none; } }
+  /* 무지개일 때 스티커 뒤 연출 캔버스 */
+  .stage { position: relative; overflow: hidden; isolation: isolate; }
+  body.is-rainbow .stage { background: #0b0820; }
+  .fx { display: none; position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; }
+  body.is-rainbow .fx { display: block; }
+  @media (prefers-reduced-motion: reduce) { .party i, .party b, body.is-rainbow #share { animation: none; } }
+  /* 휴대폰: 위에 스티커를 고정하고, 아래 시트는 탭으로 고른 구역 하나만 보여 줌. PC에서는 탭을 숨기고 모든 구역을 보여 줌 */
+  .tabs { display: none; }
   @media (max-width: 760px) {
-    body { flex-direction: column; overflow: auto; height: auto; }
-    .stage { flex: none; height: 56vh; padding: 16px; }
-    .tool { flex: none; height: auto; border-left: 0; border-top: 1px solid #d9d9d4; }
-    .tool__head, .tool__body, .tool__foot { padding-left: 16px; padding-right: 16px; }
-    .tool__foot { position: sticky; bottom: 0; background: #f4f4f1; }
+    body { flex-direction: column; height: 100dvh; background: var(--panel); }
+    .tool { display: contents; }
+    .tool__head { order: 0; display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--panel); }
+    .tool__head .back { margin: 0; }
+    .tool__head h1 { font-size: 15px; }
+    .stage { order: 1; flex: 1 1 auto; min-height: 0; padding: 12px; background: #e9e7e2; }
+    /* 탭은 회색 바탕 안에서 고른 탭만 흰 알약으로 뜨는 중립 세그먼트. 파랑은 고른 값(카드·색)에만 씀 */
+    .tabs { order: 2; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin: 12px 16px 0; padding: 3px; border-radius: 10px; background: #ebe8e2; }
+    .tab { height: 36px; border: 0; border-radius: 8px; background: none; font-size: 14px; font-weight: 500; color: var(--ink-2); cursor: pointer; transition: background var(--ease), color var(--ease), box-shadow var(--ease); }
+    .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(40, 30, 10, .12), 0 0 0 .5px rgba(40, 30, 10, .06); }
+    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .tool__body { order: 3; flex: none; height: 236px; padding: 0 16px; background: var(--panel); }
+    .pick span { font-size: 13px; }
+    .ctrl label, .fld > span:first-child { font-size: 13px; }
+    .num { font-size: 14px; }
+    section { padding: 12px 0 14px; gap: 10px; border-bottom: 0; }
+    section:not(.on) { display: none; }
+    /* 탭 이름이 제목 역할을 하므로 구역 제목은 화면에서만 숨기고, 보조 동작(랜덤)은 오른쪽에 남김 */
+    section h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .sec-head { min-height: 0; justify-content: flex-end; }
+    .sec-head:not(:has(.link)) { display: none; }
+    /* 빵·토핑 카드는 옆으로 넘겨 보는 한 줄 */
+    .picks { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 96px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; scrollbar-width: none; }
+    .picks::-webkit-scrollbar { display: none; }
+    .pick { scroll-snap-align: start; }
+    .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chips::after { content: ""; flex: 0 0 10px; }
+    /* 아래 줄: 저장·공유는 아이콘만, 구매하기는 남은 폭 전체 */
+    .tool__foot { order: 4; grid-template-columns: auto auto 1fr; align-items: center; padding: 8px 16px calc(10px + env(safe-area-inset-bottom)); border-top: 0; }
+    .pair { display: contents; }
+    /* 저장·공유: 아이콘 아래 작은 글자 */
+    .pair .btn { flex-direction: column; width: 56px; height: 52px; padding: 0; gap: 2px; font-size: 11px; font-weight: 600; }
+    .pair .btn svg { width: 18px; height: 18px; }
+    .btn--primary { height: 52px; }
+    .status { grid-column: 1 / -1; }
   }
 </style>
 </head>
 <body>
 <div class="party" aria-hidden="true"><span class="glow"><i></i></span><i></i><b></b></div>
-<main class="stage"><canvas id="sticker" width="1400" height="1880" aria-label="스티커 미리보기"></canvas></main>
+<main class="stage"><canvas class="fx" id="fx" aria-hidden="true"></canvas><canvas id="sticker" width="1400" height="1880" aria-label="스티커 미리보기"></canvas></main>
 <aside class="tool">
   <div class="tool__head">
-    <a class="back" href="../index.html">← 아카이브</a>
+    <a class="back" href="../index.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>아카이브</a>
     <h1>나만의 빵 스티커</h1>
   </div>
+  <div class="tabs" id="tabs" role="tablist" aria-label="편집 항목"></div>
   <div class="tool__body">
     <section aria-labelledby="h-base">
-      <h2 id="h-base">빵</h2>
+      <div class="sec-head"><h2 id="h-base">메뉴</h2></div>
+      <div class="chips" id="cats" role="group" aria-label="메뉴 카테고리"></div>
       <div class="picks" id="bases"></div>
+      <p class="note" id="catEmpty"></p>
       <p class="err" id="baseErr"></p>
     </section>
     <section aria-labelledby="h-top">
-      <h2 id="h-top">토핑</h2>
+      <div class="sec-head">
+        <h2 id="h-top">토핑</h2>
+        <button class="link" type="button" id="random"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.6" cy="5.6" r=".9" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="10.4" cy="10.4" r=".9" fill="currentColor" stroke="none"/></svg>랜덤 조합</button>
+      </div>
+      <p class="note" id="topNote"></p>
       <div class="picks" id="toppings"></div>
-      <button class="btn" type="button" id="random">랜덤 조합</button>
     </section>
     <section aria-labelledby="h-place">
-      <h2 id="h-place">배치</h2>
-      <div class="field">
-        <span class="lv"><label for="bSize">크기</label><input class="num" type="number" id="bSizeN" min="1" max="10" step="1" value="5" aria-label="크기 값"></span>
+      <div class="sec-head"><h2 id="h-place">배치</h2></div>
+      <div class="ctrl">
+        <label for="bSize">크기</label>
+        <input class="num" type="number" id="bSizeN" min="1" max="10" step="1" value="5" aria-label="크기 값">
         <input type="range" id="bSize" min="1" max="10" step="1" value="5">
       </div>
-      <div class="field">
-        <span class="lv"><label for="bRot">회전</label><input class="num" type="number" id="bRotN" min="1" max="10" step="1" value="1" aria-label="회전 값"></span>
+      <div class="ctrl">
+        <label for="bRot">회전</label>
+        <input class="num" type="number" id="bRotN" min="1" max="10" step="1" value="1" aria-label="회전 값">
         <input type="range" id="bRot" min="1" max="10" step="1" value="1">
       </div>
     </section>
     <section aria-labelledby="h-label">
-      <h2 id="h-label">문구</h2>
-      <div class="row">
-        <label class="field">넘버<input class="text" id="num" inputmode="numeric" maxlength="3" placeholder="000" autocomplete="off"></label>
-        <label class="field">이름<input class="text" id="topText" maxlength="12" placeholder="예: 딸기 토스트" autocomplete="off"></label>
+      <div class="sec-head"><h2 id="h-label">문구</h2></div>
+      <div class="fields">
+        <label class="fld"><span>넘버</span><input class="text" id="num" inputmode="numeric" maxlength="3" autocomplete="off"></label>
+        <label class="fld"><span>이름</span><span class="box"><input class="text" id="topText" maxlength="12" autocomplete="off"><span class="count" id="topCount">0/12</span></span></label>
       </div>
-      <span class="count" id="topCount">0/12</span>
       <p class="err" id="topErr"></p>
-      <div class="lv"><span id="colorLabel" class="field">넘버 색</span><button class="btn btn--small" type="button" id="randomColor">랜덤</button></div>
+    </section>
+    <section aria-labelledby="colorLabel">
+      <div class="sec-head">
+        <h2 id="colorLabel">넘버 색</h2>
+        <button class="link" type="button" id="randomColor"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.6" cy="5.6" r=".9" fill="currentColor" stroke="none"/><circle cx="10.4" cy="5.6" r=".9" fill="currentColor" stroke="none"/><circle cx="5.6" cy="10.4" r=".9" fill="currentColor" stroke="none"/><circle cx="10.4" cy="10.4" r=".9" fill="currentColor" stroke="none"/></svg>랜덤</button>
+      </div>
       <div class="swatches" id="colors" role="radiogroup" aria-labelledby="colorLabel"></div>
     </section>
   </div>
   <div class="tool__foot">
+    <div class="pair">
+      <button class="btn" type="button" id="save"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7.5M4.8 7L8 10.2 11.2 7M3 13h10"/></svg>저장</button>
+      <button class="btn" type="button" id="share"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10V2.5M5 5.3L8 2.3l3 3M4.5 7.5H4a1 1 0 00-1 1V13a1 1 0 001 1h8a1 1 0 001-1V8.5a1 1 0 00-1-1h-.5"/></svg>공유</button>
+    </div>
     <button class="btn btn--primary" type="button" id="buy">구매하기</button>
     <p class="status" id="status" role="status" aria-live="polite"></p>
   </div>
@@ -128,32 +236,48 @@ const W = 1400, H = 1880;
 const STORE_URL = "";
 // 이름 글자 수: 상단 알약 최대 폭(카드 폭 - 좌우 여백 100)에 70px 글자가 넘치지 않는 수
 const TOP_MAX = 12;
+// 무지개가 떴을 때 아래 안내
+const RAINBOW_CHEER = "무지개가 떴어요! 공유해 보세요.";
 
 // 빵·토핑 조합별 완성 이미지. 키는 "빵 번호:토핑 번호(오름차순, 쉼표)", 예: "0:1,3" → "img/combo/0-1-3.jpg"
 const COMBOS = {};
-// 넘버 배경색: Figma 카드에 쓰인 주황·초록·파랑·보라·핑크는 같은 값
+// 넘버 배경색: 채도·밝기를 한 세트로 맞춘 색(Radix Colors 9단계 계열). 밝은 색은 숫자를 어두운 색으로
 const COLORS = [
-  { name: "빨강", fill: "#ef3b3b" },
-  { name: "주황", fill: "#f26d0d" },
-  { name: "노랑", fill: "#f7c600", ink: "#111827" },
-  { name: "초록", fill: "#17ca41" },
-  { name: "파랑", fill: "#219dee" },
-  { name: "보라", fill: "#7737e5" },
-  { name: "검정", fill: "#111827" },
-  { name: "흰색", fill: "#ffffff", ink: "#111827", line: "#d1d5db" },
-  { name: "핑크", fill: "#ec4596" },
-  { name: "하늘색", fill: "#5ac8fa" },
+  { name: "빨강", fill: "#e5484d" },
+  { name: "주황", fill: "#f76b15" },
+  { name: "노랑", fill: "#ffc53d", ink: "#1c2024" },
+  { name: "초록", fill: "#30a46c" },
+  { name: "파랑", fill: "#0090ff" },
+  { name: "보라", fill: "#8e4ec6" },
+  { name: "검정", fill: "#1c2024" },
+  { name: "흰색", fill: "#ffffff", ink: "#1c2024", line: "#d1d5db" },
+  { name: "핑크", fill: "#ef5f86" },
+  { name: "하늘색", fill: "#4cb3f0", ink: "#1c2024" },
   { name: "무지개", rainbow: ["#ef3b3b", "#f26d0d", "#f7c600", "#17ca41", "#219dee", "#7737e5"] },
 ];
 
 const $ = id => document.getElementById(id);
 const cv = $("sticker"), g = cv.getContext("2d");
 // top: 빵 윗면을 감싸는 타원(1213 정사각 기준 비율: 가운데, 반지름, 기울기). 샘플 합성에서 토핑을 놓는 범위
+// 메뉴 카테고리(빵의시간 주문 메뉴 기준). 지금 메뉴는 Figma 일러스트 샘플이라 비어 있는 카테고리가 있음
+const CATS = [["salt", "소금빵"], ["ciabatta", "치아바타"], ["focaccia", "포카치아"], ["baguette", "바게트"], ["croissant", "크루아상"], ["pie", "파이"], ["sandwich", "샌드위치"], ["etc", "기타"], ["pudding", "푸딩"], ["tart", "타르트"], ["dessert", "디저트"], ["drink", "음료"]];
+// 메뉴: top(윗면 타원)이 있으면 토핑 빵, 없으면 토핑을 올리지 않는 완제 메뉴
 const BASES = [
   { name: "빵 없음", none: true },
-  { name: "치즈 토스트", short: "토스트", src: "img/base-cheese-toast.jpg", top: { cx: 0.53, cy: 0.38, rx: 0.24, ry: 0.13, rot: -0.42 } },
-  { name: "소시지 페이스트리", short: "페이스트리", src: "img/base-sausage-pastry.jpg", top: { cx: 0.49, cy: 0.44, rx: 0.3, ry: 0.07, rot: -0.34 } },
-  { name: "크림 바게트", short: "바게트", src: "img/base-cream-baguette.jpg", top: { cx: 0.52, cy: 0.42, rx: 0.27, ry: 0.1, rot: -0.3 } },
+  { name: "치즈 토스트", short: "토스트", cat: "etc", src: "img/base-cheese-toast.jpg", top: { cx: 0.53, cy: 0.38, rx: 0.24, ry: 0.13, rot: -0.42 } },
+  { name: "크림 바게트", short: "바게트", cat: "baguette", src: "img/base-cream-baguette.jpg", top: { cx: 0.52, cy: 0.42, rx: 0.27, ry: 0.1, rot: -0.3 } },
+  { name: "소시지 페이스트리", cat: "etc", src: "img/base-sausage-pastry.jpg" },
+  { name: "크루아상 샌드위치", cat: "sandwich", src: "img/full-croissant-sandwich.jpg" },
+  { name: "딸기 생크림 케이크", cat: "dessert", src: "img/full-strawberry-cake.jpg" },
+  { name: "티라미수", cat: "dessert", src: "img/full-tiramisu.jpg" },
+  { name: "딸기 슈크림", cat: "dessert", src: "img/full-strawberry-puff.jpg" },
+  { name: "과일 슈크림", cat: "dessert", src: "img/full-fruit-puff.jpg" },
+  { name: "딸기 크레이프", cat: "dessert", src: "img/full-crepe.jpg" },
+  { name: "초코 스틱", cat: "dessert", src: "img/full-choco-stick.jpg" },
+  { name: "딸기 에이드", cat: "drink", src: "img/full-strawberry-ade.jpg" },
+  { name: "자몽 블랙티", cat: "drink", src: "img/full-grapefruit-tea.jpg" },
+  { name: "말차 라떼", cat: "drink", src: "img/full-matcha-latte.jpg" },
+  { name: "망고 에이드", cat: "drink", src: "img/full-mango-ade.jpg" },
 ];
 // 토핑 샘플 그림: (그릴 곳, 가운데 x, y, 크기 s, 난수). 실제 서비스에서는 조합별 완성 이미지로 바뀜
 const drawCream = (x, cx, cy, s) => {
@@ -241,8 +365,12 @@ const logoCut = (() => {
 
 // place: 빵 이미지 한 장의 가운데 위치·배율·회전(사용자가 조정하는 값은 이것뿐)
 // 넘버 배경색은 접속할 때마다 무작위. 주소에 ?rainbow를 붙이면 무지개로 시작(확인용)
-const startColor = new URLSearchParams(location.search).has("rainbow") ? COLORS.length - 1 : crypto.getRandomValues(new Uint32Array(1))[0] % COLORS.length;
-const state = { base: 0, toppings: new Set(), color: startColor,place: { x: 700, y: 1055, k: 1, r: 0 } };
+// 무지개는 1% 확률로 드물게, 나머지 10가지는 같은 확률
+const RAINBOW_RATE = 0.01;
+const rand01 = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+const pickColor = () => (rand01() < RAINBOW_RATE ? COLORS.length - 1 : Math.floor(rand01() * (COLORS.length - 1)));
+const startColor = new URLSearchParams(location.search).has("rainbow") ? COLORS.length - 1 : pickColor();
+const state = { cat: CATS.find(([id]) => BASES.some(b => b.cat === id))[0], base: 0, toppings: new Set(), color: startColor,place: { x: 700, y: 1055, k: 1, r: 0 } };
 const comboKey = () => `${state.base}:${[...state.toppings].sort((a, b) => a - b).join(",")}`;
 const comboImgs = {};
 // 고른 조합의 빵 이미지(1213 정사각). 완성 이미지가 있으면 그것을, 없으면 빵 윗면에 토핑 그림을 쌓은 샘플
@@ -254,6 +382,7 @@ function comboImage() {
   if (BASES[state.base].none) return (comboImgs[key] = c);
   const x = c.getContext("2d"), b = baseImgs[state.base], k = Math.min(1213 / b.width, 1213 / b.height);
   x.drawImage(b, (1213 - b.width * k) / 2, (1213 - b.height * k) / 2, b.width * k, b.height * k);
+  if (!BASES[state.base].top) { if (!COMBOS[key]) comboImgs[key] = c; return c; }
   const top = BASES[state.base].top, area = { rx: top.rx * 1213, ry: top.ry * 1213, rot: top.rot };
   const cx0 = top.cx * 1213, cy0 = top.cy * 1213, cos = Math.cos(top.rot), sin = Math.sin(top.rot);
   for (const i of [...state.toppings].sort((a, b) => TOPPINGS[a].layer - TOPPINGS[b].layer)) {
@@ -329,7 +458,27 @@ const pickBtn = (item, onClick) => {
   b.addEventListener("click", onClick); return b;
 };
 BASES.forEach((item, i) => $("bases").append(pickBtn(item, () => { state.base = i; picked(); })));
-const syncBases = () => [...$("bases").children].forEach((b, i) => b.setAttribute("aria-pressed", String(i === state.base)));
+CATS.forEach(([id, label]) => {
+  const c = document.createElement("button");
+  c.type = "button"; c.className = "chip"; c.textContent = label; c.dataset.cat = id;
+  c.addEventListener("click", () => { state.cat = id; syncBases(); });
+  $("cats").append(c);
+});
+// 가로로 넘기는 줄(휴대폰)에서 고른 항목이 가운데 오도록 줄을 옮김
+const reveal = el => {
+  const p = el && el.parentElement;
+  if (!p || p.scrollWidth <= p.clientWidth || el.hidden) return;
+  const er = el.getBoundingClientRect(), pr = p.getBoundingClientRect();
+  p.scrollLeft += (er.left - pr.left) - (pr.width - er.width) / 2;
+};
+// 고른 카테고리의 메뉴만 보이고, '빵 없음'은 늘 맨 앞에 보임
+const syncBases = () => {
+  [...$("bases").children].forEach((b, i) => { b.setAttribute("aria-pressed", String(i === state.base)); b.hidden = i > 0 && BASES[i].cat !== state.cat; });
+  [...$("cats").children].forEach(c => c.setAttribute("aria-pressed", String(c.dataset.cat === state.cat)));
+  $("catEmpty").textContent = BASES.some(b => b.cat === state.cat) ? "" : "이 카테고리는 아직 메뉴 이미지가 없어요.";
+  reveal([...$("cats").children].find(c => c.dataset.cat === state.cat));
+  reveal($("bases").children[state.base]);
+};
 syncBases();
 TOPPINGS.forEach((item, i) => {
   $("toppings").append(pickBtn(item, () => {
@@ -337,10 +486,17 @@ TOPPINGS.forEach((item, i) => {
     picked();
   }));
 });
-const syncToppings = () => [...$("toppings").children].forEach((b, i) => { b.setAttribute("aria-pressed", String(state.toppings.has(i))); b.disabled = !!BASES[state.base].none; });
+const syncToppings = () => {
+  const b = BASES[state.base];
+  [...$("toppings").children].forEach((t, i) => { t.setAttribute("aria-pressed", String(state.toppings.has(i))); t.disabled = !b.top; });
+  $("topNote").textContent = b.none ? "메뉴를 먼저 골라 주세요." : b.top ? "" : "완제 메뉴는 토핑을 올릴 수 없어요.";
+};
 // 빵·토핑이 바뀔 때: 버튼 상태, 자동 이름, 스티커를 함께 갱신
 function picked() {
-  if (BASES[state.base].none) state.toppings.clear();
+  const b = BASES[state.base];
+  if (!b.top) state.toppings.clear();
+  // 랜덤 등으로 다른 카테고리의 메뉴가 골라지면 그 카테고리를 보여 줌
+  if (!b.none) state.cat = b.cat;
   syncBases(); syncToppings();
   if (autoName) $("topText").value = makeName();
   // 넘버를 직접 쓰기 전에는 이름이 있으면 001, 없으면 비움
@@ -350,7 +506,7 @@ function picked() {
 // 자동 이름: 토핑 말 + 빵 이름. 넘버 옆 문구 글자 수를 넘으면 띄어쓰기를 빼거나 짧은 빵 이름으로 줄임
 function makeName() {
   const b = BASES[state.base];
-  if (b.none) return "";
+  if (!b.top) return b.name;
   const words = [...state.toppings].sort((x, y) => TOPPINGS[x].order - TOPPINGS[y].order).map(i => TOPPINGS[i].word);
   if (!words.length) return b.name;
   const tries = [`${words.join(" ")} ${b.name}`, `${words.join("")} ${b.name}`, `${words.join(" ")} ${b.short}`, `${words.join("")} ${b.short}`, `${words.join("")}${b.short}`, `토핑 듬뿍 ${b.short}`];
@@ -360,12 +516,12 @@ function makeName() {
 let autoName = true, autoNum = true;
 $("topText").addEventListener("input", () => { autoName = !$("topText").value.trim(); });
 $("num").addEventListener("input", () => { autoNum = !$("num").value; });
-// 랜덤 조합: 빵 1개(빵 없음 제외) + 토핑 1개 이상(지금 조합과 다르게)
+// 랜덤 조합: 메뉴 1개(빵 없음 제외). 토핑 빵이면 토핑 1개 이상(지금 조합과 다르게)
 $("random").addEventListener("click", () => {
   const key = comboKey();
   do {
     state.base = 1 + Math.floor(Math.random() * (BASES.length - 1));
-    const n = 1 + Math.floor(Math.random() * TOPPINGS.length);
+    const n = BASES[state.base].top ? 1 + Math.floor(Math.random() * TOPPINGS.length) : 0;
     state.toppings = new Set([...TOPPINGS.keys()].sort(() => Math.random() - 0.5).slice(0, n));
   } while (comboKey() === key);
   picked();
@@ -380,12 +536,14 @@ for (const id of Object.keys(LEVEL)) {
   const apply = (v, fromBox) => {
     const n = Math.min(10, Math.max(1, Math.round(+v || 1)));
     range.value = n; if (!fromBox) box.value = n;
+    range.style.setProperty("--p", ((n - 1) / 9) * 100 + "%");
     LEVEL[id](n); render();
   };
   range.addEventListener("input", () => apply(range.value));
   box.addEventListener("input", () => { if (box.value !== "") apply(box.value, true); });
   // 칸을 벗어날 때 범위를 벗어난 값이나 빈 값을 1~10 정수로 고침
   box.addEventListener("change", () => apply(box.value));
+  range.style.setProperty("--p", ((range.value - 1) / 9) * 100 + "%");
 }
 
 // 스티커 위에서 빵 이미지를 끌어 옮기기(빵 영역 안을 눌렀을 때만)
@@ -428,13 +586,127 @@ COLORS.slice(0, PICKABLE).forEach((c, i) => {
 const syncColors = () => {
   [...$("colors").children].forEach((b, i) => { b.setAttribute("aria-checked", String(i === state.color)); b.tabIndex = i === (state.color < PICKABLE ? state.color : 0) ? 0 : -1; });
   document.body.classList.toggle("is-rainbow", state.color >= PICKABLE);
+  setFx(state.color >= PICKABLE);
 };
+// 무지개일 때 스티커 뒤 연출(뱀파이어 서바이벌의 보물상자 개봉 참고): 밤하늘 바탕, 아래 가운데에서 부채꼴로 솟는 무지개 빛줄기,
+// 분수처럼 튀어 오르는 동전과 반짝이, 처음 나올 때는 섬광과 불꽃놀이
+const fx = { cv: $("fx"), on: false, t0: 0, last: 0, parts: [], d: 1, nextBoom: 0 };
+const FX_COLORS = ["#ff4d6d", "#ff9f1c", "#ffe14d", "#3ddc84", "#3ab8ff", "#7b6cff", "#e46cff"];
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function fxResize() {
+  const r = fx.cv.getBoundingClientRect();
+  fx.d = Math.min(2, devicePixelRatio || 1);
+  fx.cv.width = Math.max(1, Math.round(r.width * fx.d)); fx.cv.height = Math.max(1, Math.round(r.height * fx.d));
+}
+new ResizeObserver(() => { if (fx.on) fxResize(); }).observe(fx.cv);
+const fxRand = (a, b) => a + Math.random() * (b - a);
+// 아래 양쪽 구석과 가운데에서 동전·반짝이를 위로 쏘아 올림(가운데 것은 스티커에 가려지므로 양옆 위주)
+function fountain(n) {
+  const w = fx.cv.width, h = fx.cv.height, d = fx.d;
+  for (let i = 0; i < n && fx.parts.length < 700; i++) {
+    const coin = Math.random() < 0.55, side = [-1, 1, -1, 1, 0][(Math.random() * 5) | 0];
+    fx.parts.push({
+      kind: coin ? "coin" : "spark", x: w / 2 + side * 0.42 * w + fxRand(-0.03, 0.03) * w, y: h * 0.99,
+      vx: (side ? -side * fxRand(0.02, 0.22) : fxRand(-0.38, 0.38)) * w, vy: -fxRand(0.85, 1.35) * h, life: 0, max: fxRand(2.2, 3.4),
+      r: (coin ? fxRand(8, 14) : fxRand(4, 8)) * d, spin: fxRand(0, 6), spinV: fxRand(6, 14), color: FX_COLORS[(Math.random() * FX_COLORS.length) | 0],
+    });
+  }
+}
+// 불꽃놀이: 한 점에서 둥글게 터지는 색 알갱이
+function boom(x, y) {
+  const d = fx.d, color = FX_COLORS[(Math.random() * FX_COLORS.length) | 0], n = 34;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + fxRand(-0.08, 0.08), sp = fxRand(160, 380) * d;
+    fx.parts.push({ kind: "dot", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: fxRand(0.9, 1.4), r: fxRand(2, 3.5) * d, color });
+  }
+}
+function star(c, x, y, r) {
+  c.beginPath();
+  for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4, rr = i % 2 ? r * 0.35 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  c.closePath(); c.fill();
+}
+function fxDraw(now) {
+  const c = fx.cv.getContext("2d"), w = fx.cv.width, h = fx.cv.height, t = (now - fx.t0) / 1000, dt = Math.min(0.05, (now - (fx.last || now)) / 1000);
+  fx.last = now;
+  // 밤하늘 바탕(아래 가운데가 밝음)
+  const bg = c.createRadialGradient(w / 2, h * 0.95, 0, w / 2, h * 0.7, Math.hypot(w, h) * 0.75);
+  bg.addColorStop(0, "#4a2f8f"); bg.addColorStop(0.45, "#21184d"); bg.addColorStop(1, "#0b0820");
+  c.globalCompositeOperation = "source-over"; c.fillStyle = bg; c.fillRect(0, 0, w, h);
+  // 무지개 빛줄기: 처음에 아래에서 펼쳐지고, 이후 천천히 좌우로 흔들림
+  c.globalCompositeOperation = "lighter";
+  const open = still ? 1 : 1 - Math.pow(1 - Math.min(1, t / 0.9), 3), ox = w / 2, oy = h * 1.03, L = Math.hypot(w, h) * open;
+  for (let i = 0; i < 14; i++) {
+    const a = -Math.PI / 2 + (i - 6.5) * 0.16 * open + Math.sin(t * 0.7 + i * 1.3) * 0.035, half = 0.045 + (i % 3) * 0.012;
+    const gr = c.createLinearGradient(ox, oy, ox + Math.cos(a) * L, oy + Math.sin(a) * L);
+    const col = FX_COLORS[i % FX_COLORS.length], pulse = 0.32 + 0.12 * Math.sin(t * 2.1 + i);
+    gr.addColorStop(0, col + "ff"); gr.addColorStop(0.08, col + Math.round(pulse * 255).toString(16).padStart(2, "0")); gr.addColorStop(1, col + "00");
+    c.fillStyle = gr; c.beginPath(); c.moveTo(ox, oy);
+    c.lineTo(ox + Math.cos(a - half) * L, oy + Math.sin(a - half) * L); c.lineTo(ox + Math.cos(a + half) * L, oy + Math.sin(a + half) * L); c.fill();
+  }
+  // 빛이 솟는 자리의 밝은 빛무리
+  const glow = c.createRadialGradient(ox, h * 0.97, 0, ox, h * 0.97, Math.min(w, h) * 0.45);
+  glow.addColorStop(0, "rgba(255,248,220,.9)"); glow.addColorStop(0.3, "rgba(255,210,120,.35)"); glow.addColorStop(1, "rgba(255,210,120,0)");
+  c.fillStyle = glow; c.fillRect(0, 0, w, h);
+  if (!still) {
+    // 처음 2초는 쏟아지듯, 이후엔 잔잔하게. 불꽃놀이는 처음 네 번 몰아서, 이후 가끔
+    fountain(Math.round((t < 2 ? 90 : 10) * dt + Math.random()));
+    if (t > fx.nextBoom) { boom((Math.random() < 0.5 ? fxRand(0.04, 0.2) : fxRand(0.8, 0.96)) * w, fxRand(0.1, 0.55) * h); fx.nextBoom = t < 2 ? t + fxRand(0.25, 0.45) : t + fxRand(1.6, 3); }
+    const grav = h * 1.1;
+    fx.parts = fx.parts.filter(p => (p.life += dt) < p.max);
+    for (const p of fx.parts) {
+      const k = 1 - p.life / p.max;
+      if (p.kind === "dot") { p.vx *= 0.96; p.vy = p.vy * 0.96 + grav * 0.25 * dt; } else p.vy += grav * (p.kind === "coin" ? 1 : 0.45) * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      c.globalAlpha = Math.min(1, k * 2);
+      if (p.kind === "coin") {
+        // 동전: 돌면서 납작해졌다 펴지는 금색 원
+        p.spin += p.spinV * dt;
+        const rx = p.r * Math.max(0.12, Math.abs(Math.cos(p.spin)));
+        c.globalCompositeOperation = "source-over";
+        c.fillStyle = Math.cos(p.spin) > 0 ? "#ffd84a" : "#e8a317"; c.beginPath(); c.ellipse(p.x, p.y, rx, p.r, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "rgba(255,255,255,.7)"; c.beginPath(); c.ellipse(p.x - rx * 0.3, p.y - p.r * 0.35, rx * 0.25, p.r * 0.25, 0, 0, Math.PI * 2); c.fill();
+      } else {
+        c.globalCompositeOperation = "lighter"; c.fillStyle = p.color;
+        if (p.kind === "spark") star(c, p.x, p.y, p.r * (0.7 + 0.3 * Math.sin(p.life * 18)));
+        else { c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI * 2); c.fill(); }
+      }
+    }
+    c.globalAlpha = 1;
+    // 처음 순간의 섬광
+    if (t < 0.4) { c.globalCompositeOperation = "source-over"; c.fillStyle = `rgba(255,255,255,${(1 - t / 0.4) * 0.85})`; c.fillRect(0, 0, w, h); }
+  }
+  c.globalCompositeOperation = "source-over";
+  if (fx.on && !still) requestAnimationFrame(fxDraw);
+}
+function setFx(on) {
+  if (on === fx.on) return;
+  fx.on = on;
+  const st = $("status");
+  if (!on) { fx.parts = []; if (st.textContent === RAINBOW_CHEER) st.textContent = ""; return; }
+  st.className = "status"; st.textContent = RAINBOW_CHEER;
+  fxResize(); fx.t0 = fx.last = performance.now(); fx.parts = []; fx.nextBoom = 0.15;
+  requestAnimationFrame(fxDraw);
+}
 syncColors();
 // 랜덤: 지금과 다른 색 하나(무지개도 나올 수 있음)
-$("randomColor").addEventListener("click", () => {
+// 주사위처럼 고를 수 있는 색들이 점점 느리게 바뀌다가 결과에서 멈춤
+let rolling = false;
+$("randomColor").addEventListener("click", async () => {
+  if (rolling) return;
   const now = state.color;
-  while (state.color === now) state.color = crypto.getRandomValues(new Uint32Array(1))[0] % COLORS.length;
-  syncColors(); render();
+  let pick = now;
+  while (pick === now) pick = pickColor();
+  if (!still) {
+    rolling = true; $("randomColor").disabled = true;
+    for (let k = 0, prev = now; k < 12; k++) {
+      let c;
+      do c = Math.floor(rand01() * PICKABLE); while (c === prev);
+      prev = state.color = c; syncColors(); render();
+      await new Promise(r => setTimeout(r, 30 + k * k * 2));
+    }
+    rolling = false; $("randomColor").disabled = false;
+  }
+  state.color = pick; syncColors(); render();
 });
 // 라디오 묶음처럼 방향키로 색 이동
 $("colors").addEventListener("keydown", e => {
@@ -453,14 +725,15 @@ function changed() {
   $("topCount").textContent = `${chars($("topText").value.trim())}/${TOP_MAX}`;
   // 이미 검사해서 오류가 보이는 칸은 고치는 즉시 다시 검사
   if ($("baseErr").textContent || $("topErr").textContent) showErrors(check());
-  $("status").textContent = "";
+  $("status").className = "status";
+  $("status").textContent = document.body.classList.contains("is-rainbow") ? RAINBOW_CHEER : "";
   render();
 }
 
 // 구매 전 검사: 빵은 필수, 넘버와 이름은 함께 쓰거나 둘 다 비움
 function check() {
   const { num, top } = val(), errs = { base: "", top: "", topField: null };
-  if (BASES[state.base].none) errs.base = "빵을 골라 주세요.";
+  if (BASES[state.base].none) errs.base = "메뉴를 골라 주세요.";
   if (num && !top) { errs.top = "이름을 입력해 주세요."; errs.topField = "topText"; }
   else if (top && !num) { errs.top = "넘버를 입력해 주세요."; errs.topField = "num"; }
   else if (num && !/^\d{3}$/.test(num)) { errs.top = "넘버는 000~999로 입력해 주세요."; errs.topField = "num"; }
@@ -472,12 +745,46 @@ function showErrors(errs) {
   $("num").setAttribute("aria-invalid", String(errs.topField === "num"));
   $("topText").setAttribute("aria-invalid", String(errs.topField === "topText"));
 }
+// 저장·공유: 편집 표시 없이 스티커만 1400×1880 PNG로
+const say = (msg, bad) => { const st = $("status"); st.className = bad ? "status bad" : "status"; st.textContent = msg; };
+const fileName = () => `bread-sticker-${$("num").value || "000"}.png`;
+const snapshot = () => new Promise(r => { render(false); cv.toBlob(b => { render(); r(b); }, "image/png"); });
+const download = (blob, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+$("save").addEventListener("click", async () => { download(await snapshot(), fileName()); say("이미지를 저장했습니다."); });
+$("share").addEventListener("click", async () => {
+  const file = new File([await snapshot()], fileName(), { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: $("topText").value.trim() || "나만의 빵 스티커" }); } catch { /* 공유 창을 닫은 경우 */ }
+  } else { download(file, file.name); say("이 브라우저는 바로 공유가 안 돼 이미지로 저장했습니다."); }
+});
+// 휴대폰 탭: 구역 하나만 보여 줌(PC에서는 탭이 숨겨지고 .on과 상관없이 모든 구역이 보임)
+const TABS = [["h-base", "메뉴"], ["h-top", "토핑"], ["h-place", "배치"], ["h-label", "문구"], ["colorLabel", "색"]];
+const sections = TABS.map(([id]) => document.getElementById(id).closest("section"));
+TABS.forEach(([id, label], i) => {
+  sections[i].id = "sec-" + id; sections[i].setAttribute("role", "tabpanel");
+  const t = document.createElement("button");
+  t.type = "button"; t.className = "tab"; t.id = "tab-" + id; t.textContent = label;
+  t.setAttribute("role", "tab"); t.setAttribute("aria-controls", sections[i].id);
+  t.addEventListener("click", () => showTab(i));
+  $("tabs").append(t);
+});
+function showTab(i) {
+  sections.forEach((s, k) => s.classList.toggle("on", k === i));
+  [...$("tabs").children].forEach((t, k) => { t.setAttribute("aria-selected", String(k === i)); t.tabIndex = k === i ? 0 : -1; });
+}
+$("tabs").addEventListener("keydown", e => {
+  const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+  if (!d) return;
+  const i = (sections.findIndex(s => s.classList.contains("on")) + d + TABS.length) % TABS.length;
+  showTab(i); $("tabs").children[i].focus();
+});
+showTab(0);
 $("buy").addEventListener("click", () => {
   const errs = check();
   showErrors(errs);
   const first = errs.base ? $("bases").children[0] : $(errs.topField);
   const st = $("status");
-  if (first) { st.className = "status bad"; st.textContent = "입력을 확인해 주세요."; first.focus(); return; }
+  if (first) { st.className = "status bad"; st.textContent = "입력을 확인해 주세요."; showTab(sections.findIndex(s => s.contains(first))); first.focus(); return; }
   if (!STORE_URL) { st.className = "status"; st.textContent = "구매 페이지 준비 중입니다."; return; }
   location.href = STORE_URL;
 });
