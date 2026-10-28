@@ -38,10 +38,25 @@
   .link:disabled { color: var(--muted); background: none; cursor: default; }
   .link svg, .btn svg, .back svg { width: 16px; height: 16px; flex: none; }
   /* 메뉴 카테고리 칩: 필터라서 파랑 대신 검정으로 표시 */
+  /* PC: 랜덤 버튼과 카테고리 칩이 한 흐름으로 줄바꿈 */
+  .chip-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; }
+  .chip-row .chips { display: contents; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip { height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background var(--ease), color var(--ease), border-color var(--ease); }
   .chip:hover { border-color: var(--ink-2); }
   .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  /* 랜덤 버튼: 옅은 파랑 면 + 주사위 */
+  .chip--dice, .dice { border-color: transparent; background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+  .chip--dice { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 0 12px 0 9px; }
+  .chip--dice:hover, .dice:hover { border-color: transparent; background: rgba(0, 47, 167, .13); }
+  .chip--dice svg { width: 18px; height: 18px; }
+  .dice { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--r-md); cursor: pointer; transition: background var(--ease), transform var(--ease); }
+  .dice:active { transform: scale(.94); }
+  .dice:disabled { opacity: .5; cursor: default; }
+  .dice svg { width: 22px; height: 22px; }
+  /* PC에서는 아이콘만 보이고 글자는 화면 읽기용으로만 */
+  .dice-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .dice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .note { margin: 0; font-size: 12.5px; color: var(--muted); }
   .note:empty { display: none; }
@@ -84,13 +99,24 @@
   /* 글자 수는 이름 칸 안쪽 오른쪽 */
   .count { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
   /* 넘버 색 */
-  .swatches { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
-  .swatch { width: 100%; aspect-ratio: 1; padding: 0; border: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1); cursor: pointer; transition: transform var(--ease), box-shadow var(--ease); }
-  .swatch:hover { transform: scale(1.1); }
-  .swatch[aria-checked="true"] { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1), 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+  /* 색 띠 슬라이더: 손잡이가 지금 고른 색(무지개면 무지개)으로 칠해짐 */
+  .hue-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: start; }
+  .hue-box { display: grid; gap: 8px; }
+  .hue-row .dice { margin-top: -4px; }
+  .hue-marks { position: relative; height: 24px; margin: 0 15px; }
+  .hue-mark { position: absolute; top: 0; left: calc(var(--at) * 100%); width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; transform: translateX(-50%); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); cursor: pointer; transition: transform var(--ease), box-shadow var(--ease); }
+  .hue-mark::before { content: ""; position: absolute; inset: -6px; }
+  .hue-mark:hover { transform: translateX(-50%) scale(1.1); }
+  .hue-mark[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12), 0 0 0 2px var(--panel), 0 0 0 3.5px var(--ink); }
+  .hue-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=range].hue { height: 36px; --c: #fff; --track: #ccc; }
+  input[type=range].hue::-webkit-slider-runnable-track { height: 18px; border-radius: 9px; background: var(--track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+  input[type=range].hue::-moz-range-track { height: 18px; border-radius: 9px; background: var(--track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+  input[type=range].hue::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -6px; border-radius: 50%; background: var(--c); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(40, 30, 10, .3), 0 0 0 1px rgba(0, 0, 0, .06); }
+  input[type=range].hue::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: var(--c); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(40, 30, 10, .3); }
   .err { margin: 0; color: var(--danger); font-size: 12px; }
   .err:empty { display: none; }
-  .pick:focus-visible, .swatch:focus-visible, .btn:focus-visible, .link:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pick:focus-visible, .btn:focus-visible, .link:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* 아래 버튼: 보조(저장·공유) 둘, 주(구매) 하나 */
   .tool__foot { padding: 16px 24px 20px; border-top: 1px solid var(--line); background: var(--panel); display: grid; gap: 8px; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -140,6 +166,21 @@
     .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     .tool__body { order: 3; flex: none; height: 236px; padding: 0 16px; background: var(--panel); }
     .pick span { font-size: 13px; }
+    /* 시트의 남는 세로 공간: 고른 구역을 시트 높이에 맞추고 내용을 위아래 가운데에 */
+    section.on { min-height: 100%; box-sizing: border-box; align-content: center; gap: 16px; }
+    .ctrl { row-gap: 12px; }
+    #sec-h-place { gap: 24px; }
+    /* 색: 색 띠를 폭 전체로 쓰고 주사위는 아래 줄에 글자와 함께 */
+    .hue-row { grid-template-columns: minmax(0, 1fr); row-gap: 18px; }
+    .hue-box { gap: 14px; }
+    input[type=range].hue { height: 44px; }
+    input[type=range].hue::-webkit-slider-runnable-track { height: 22px; border-radius: 11px; }
+    input[type=range].hue::-webkit-slider-thumb { width: 36px; height: 36px; margin-top: -7px; }
+    .hue-marks { height: 32px; margin: 0 18px; }
+    .hue-mark { width: 30px; height: 30px; }
+    .hue-mark::before { inset: -4px -2px; }
+    .hue-row .dice { justify-self: center; display: inline-flex; gap: 6px; width: auto; height: 44px; margin: 0; padding: 0 18px 0 14px; border-radius: 999px; font-size: 14px; }
+    .dice-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
     .ctrl label, .fld > span:first-child { font-size: 13px; }
     .num { font-size: 14px; }
     section { padding: 12px 0 14px; gap: 10px; border-bottom: 0; }
@@ -152,7 +193,9 @@
     .picks { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 96px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; scrollbar-width: none; }
     .picks::-webkit-scrollbar { display: none; }
     .pick { scroll-snap-align: start; }
-    .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+    .chip-row { flex-wrap: nowrap; min-width: 0; margin-right: -16px; }
+    .chip-row .chips { display: flex; flex: 1; min-width: 0; }
+    .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-right: 16px; }
     .chips::-webkit-scrollbar { display: none; }
     .chips::after { content: ""; flex: 0 0 10px; }
     /* 아래 줄: 저장·공유는 아이콘만, 구매하기는 남은 폭 전체 */
@@ -178,7 +221,10 @@
   <div class="tool__body">
     <section aria-labelledby="h-base">
       <div class="sec-head"><h2 id="h-base">메뉴</h2></div>
-      <div class="chips" id="cats" role="group" aria-label="메뉴 카테고리"></div>
+      <div class="chip-row">
+        <button class="chip chip--dice" type="button" id="random"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3.5"/><circle cx="7" cy="7" r="1.2" fill="currentColor" stroke="none"/><circle cx="13" cy="7" r="1.2" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="1.2" fill="currentColor" stroke="none"/><circle cx="7" cy="13" r="1.2" fill="currentColor" stroke="none"/><circle cx="13" cy="13" r="1.2" fill="currentColor" stroke="none"/></svg>랜덤 조합</button>
+        <div class="chips" id="cats" role="group" aria-label="메뉴 카테고리"></div>
+      </div>
       <div class="picks" id="bases"></div>
       <p class="note" id="catEmpty"></p>
       <p class="err" id="baseErr"></p>
@@ -186,7 +232,6 @@
     <section aria-labelledby="h-top">
       <div class="sec-head">
         <h2 id="h-top">토핑</h2>
-        <button class="link" type="button" id="random"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.6" cy="5.6" r=".9" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="10.4" cy="10.4" r=".9" fill="currentColor" stroke="none"/></svg>랜덤 조합</button>
       </div>
       <p class="note" id="topNote"></p>
       <div class="picks" id="toppings"></div>
@@ -215,9 +260,14 @@
     <section aria-labelledby="colorLabel">
       <div class="sec-head">
         <h2 id="colorLabel">넘버 색</h2>
-        <button class="link" type="button" id="randomColor"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/><circle cx="5.6" cy="5.6" r=".9" fill="currentColor" stroke="none"/><circle cx="10.4" cy="5.6" r=".9" fill="currentColor" stroke="none"/><circle cx="5.6" cy="10.4" r=".9" fill="currentColor" stroke="none"/><circle cx="10.4" cy="10.4" r=".9" fill="currentColor" stroke="none"/></svg>랜덤</button>
       </div>
-      <div class="swatches" id="colors" role="radiogroup" aria-labelledby="colorLabel"></div>
+      <div class="hue-row">
+        <div class="hue-box">
+          <input class="hue" type="range" id="hue" min="0" max="1000" step="any" aria-labelledby="colorLabel">
+          <div class="hue-marks" id="hueMarks" role="group" aria-label="기본 색"></div>
+        </div>
+        <button class="dice" type="button" id="randomColor" title="랜덤 색"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="3.5"/><circle cx="7" cy="7" r="1.2" fill="currentColor" stroke="none"/><circle cx="13" cy="7" r="1.2" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="1.2" fill="currentColor" stroke="none"/><circle cx="7" cy="13" r="1.2" fill="currentColor" stroke="none"/><circle cx="13" cy="13" r="1.2" fill="currentColor" stroke="none"/></svg><span class="dice-label">랜덤 색</span></button>
+      </div>
     </section>
   </div>
   <div class="tool__foot">
@@ -241,20 +291,25 @@ const RAINBOW_CHEER = "무지개가 떴어요! 공유해 보세요.";
 
 // 빵·토핑 조합별 완성 이미지. 키는 "빵 번호:토핑 번호(오름차순, 쉼표)", 예: "0:1,3" → "img/combo/0-1-3.jpg"
 const COMBOS = {};
-// 넘버 배경색: 채도·밝기를 한 세트로 맞춘 색(Radix Colors 9단계 계열). 밝은 색은 숫자를 어두운 색으로
-const COLORS = [
-  { name: "빨강", fill: "#e5484d" },
-  { name: "주황", fill: "#f76b15" },
-  { name: "노랑", fill: "#ffc53d", ink: "#1c2024" },
-  { name: "초록", fill: "#30a46c" },
-  { name: "파랑", fill: "#0090ff" },
-  { name: "보라", fill: "#8e4ec6" },
-  { name: "검정", fill: "#1c2024" },
-  { name: "흰색", fill: "#ffffff", ink: "#1c2024", line: "#d1d5db" },
-  { name: "핑크", fill: "#ef5f86" },
-  { name: "하늘색", fill: "#4cb3f0", ink: "#1c2024" },
-  { name: "무지개", rainbow: ["#ef3b3b", "#f26d0d", "#f7c600", "#17ca41", "#219dee", "#7737e5"] },
-];
+// 넘버 배경색 슬라이더 띠: 왼쪽 흰색·분홍에서 오른쪽 하늘·파랑·보라·검정까지 같은 간격으로 이어짐. 값은 0~1000 사이 연속값
+const HUE_STOPS = ["#ffffff", "#ef5f86", "#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#4cb3f0", "#0090ff", "#8e4ec6", "#1c2024"];
+const HUE_NAMES = ["흰색", "분홍", "빨강", "주황", "노랑", "초록", "하늘색", "파랑", "보라", "검정"];
+const HUE_MAX = 1000;
+const RAINBOW = ["#ef3b3b", "#f26d0d", "#f7c600", "#17ca41", "#219dee", "#7737e5"];
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+// 띠의 v 지점 색(이웃한 두 색을 섞음)
+function hueColor(v) {
+  const p = (v / HUE_MAX) * (HUE_STOPS.length - 1), i = Math.min(HUE_STOPS.length - 2, Math.floor(p)), f = p - i;
+  const a = hexRgb(HUE_STOPS[i]), b = hexRgb(HUE_STOPS[i + 1]);
+  return "#" + a.map((x, k) => Math.round(x + (b[k] - x) * f).toString(16).padStart(2, "0")).join("");
+}
+// 밝은 색이면 숫자를 어둡게, 아주 밝으면 테두리도 그림
+function numColor() {
+  if (state.color < 0) return { rainbow: RAINBOW };
+  const fill = hueColor(state.color), [r, g, b] = hexRgb(fill).map(x => { x /= 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return { fill, ink: lum > 0.42 ? "#1c2024" : "#fff", line: lum > 0.85 ? "#d1d5db" : null };
+}
 
 const $ = id => document.getElementById(id);
 const cv = $("sticker"), g = cv.getContext("2d");
@@ -365,11 +420,11 @@ const logoCut = (() => {
 
 // place: 빵 이미지 한 장의 가운데 위치·배율·회전(사용자가 조정하는 값은 이것뿐)
 // 넘버 배경색은 접속할 때마다 무작위. 주소에 ?rainbow를 붙이면 무지개로 시작(확인용)
-// 무지개는 1% 확률로 드물게, 나머지 10가지는 같은 확률
+// state.color: 슬라이더 값(0~1000), 무지개는 -1. 무지개는 1% 확률로 드물게, 나머지는 띠 위 아무 지점
 const RAINBOW_RATE = 0.01;
 const rand01 = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
-const pickColor = () => (rand01() < RAINBOW_RATE ? COLORS.length - 1 : Math.floor(rand01() * (COLORS.length - 1)));
-const startColor = new URLSearchParams(location.search).has("rainbow") ? COLORS.length - 1 : pickColor();
+const pickColor = () => (rand01() < RAINBOW_RATE ? -1 : rand01() * HUE_MAX);
+const startColor = new URLSearchParams(location.search).has("rainbow") ? -1 : pickColor();
 const state = { cat: CATS.find(([id]) => BASES.some(b => b.cat === id))[0], base: 0, toppings: new Set(), color: startColor,place: { x: 700, y: 1055, k: 1, r: 0 } };
 const comboKey = () => `${state.base}:${[...state.toppings].sort((a, b) => a - b).join(",")}`;
 const comboImgs = {};
@@ -434,7 +489,7 @@ function render(ui = true) {
     const w = num && top ? nw + 40 + tw + 56 : num ? nw : tw + 112;
     pill(100, 100, w, "#fff");
     if (num) {
-      const c = COLORS[state.color];
+      const c = numColor();
       let fill = c.fill;
       if (c.rainbow) { fill = g.createLinearGradient(100, 0, 100 + nw, 0); c.rainbow.forEach((h, j) => fill.addColorStop(j / (c.rainbow.length - 1), h)); }
       g.fillStyle = fill; g.beginPath(); g.roundRect(100, 100, nw, 140, 70); g.fill();
@@ -573,20 +628,26 @@ const endDrag = () => { drag = null; dragging = false; cv.className = ""; render
 cv.addEventListener("pointerup", endDrag);
 cv.addEventListener("pointercancel", endDrag);
 
-// 넘버 배경색: 무지개는 직접 고를 수 없고 무작위(접속할 때, 랜덤 버튼)로만 나옴(목록 맨 끝이라 버튼 순서와 색 번호가 같음)
-const PICKABLE = COLORS.filter(c => !c.rainbow).length;
-COLORS.slice(0, PICKABLE).forEach((c, i) => {
+// 넘버 배경색: 슬라이더로 띠 위 아무 색이나 고름. 무지개는 직접 고를 수 없고 무작위(접속할 때, 랜덤 버튼)로만 나옴
+$("hue").style.setProperty("--track", `linear-gradient(90deg, ${HUE_STOPS.join(", ")})`);
+$("hue").addEventListener("input", e => { state.color = +e.target.value; syncColors(); render(); });
+HUE_STOPS.forEach((c, i) => {
   const b = document.createElement("button");
-  b.type = "button"; b.className = "swatch"; b.setAttribute("role", "radio"); b.setAttribute("aria-label", c.name); b.title = c.name;
-  b.style.background = c.fill;
-  b.addEventListener("click", () => { state.color = i; syncColors(); render(); });
-  $("colors").append(b);
+  b.type = "button"; b.className = "hue-mark"; b.title = HUE_NAMES[i]; b.setAttribute("aria-label", HUE_NAMES[i]);
+  b.style.setProperty("--at", i / (HUE_STOPS.length - 1)); b.style.background = c;
+  b.addEventListener("click", () => { state.color = (i / (HUE_STOPS.length - 1)) * HUE_MAX; syncColors(); render(); });
+  $("hueMarks").append(b);
 });
-// 무지개일 때는 아무 버튼도 선택되지 않고(키보드 초점은 첫 버튼), 화면 테두리 장식이 켜짐
+// 무지개일 때는 손잡이가 무지개로 칠해지고 화면 테두리 장식이 켜짐(손잡이 자리는 그대로)
 const syncColors = () => {
-  [...$("colors").children].forEach((b, i) => { b.setAttribute("aria-checked", String(i === state.color)); b.tabIndex = i === (state.color < PICKABLE ? state.color : 0) ? 0 : -1; });
-  document.body.classList.toggle("is-rainbow", state.color >= PICKABLE);
-  setFx(state.color >= PICKABLE);
+  const rainbow = state.color < 0, h = $("hue");
+  if (!rainbow) h.value = state.color;
+  h.style.setProperty("--c", rainbow ? `linear-gradient(135deg, ${RAINBOW.join(", ")})` : hueColor(state.color));
+  h.setAttribute("aria-valuetext", rainbow ? "무지개" : hueColor(state.color));
+  // 손잡이가 기본 색 자리에 정확히 있으면 그 점을 표시
+  [...$("hueMarks").children].forEach((m, i) => m.setAttribute("aria-pressed", String(!rainbow && Math.abs(state.color - (i / (HUE_STOPS.length - 1)) * HUE_MAX) < 0.5)));
+  document.body.classList.toggle("is-rainbow", rainbow);
+  setFx(rainbow);
 };
 // 무지개일 때 스티커 뒤 연출(뱀파이어 서바이벌의 보물상자 개봉 참고): 밤하늘 바탕, 아래 가운데에서 부채꼴로 솟는 무지개 빛줄기,
 // 분수처럼 튀어 오르는 동전과 반짝이, 처음 나올 때는 섬광과 불꽃놀이
@@ -688,34 +749,22 @@ function setFx(on) {
   requestAnimationFrame(fxDraw);
 }
 syncColors();
-// 랜덤: 지금과 다른 색 하나(무지개도 나올 수 있음)
-// 주사위처럼 고를 수 있는 색들이 점점 느리게 바뀌다가 결과에서 멈춤
+// 랜덤: 띠 위 아무 지점(1%는 무지개). 손잡이가 빠르게 몇 번 튀다가 멈춤
 let rolling = false;
 $("randomColor").addEventListener("click", async () => {
   if (rolling) return;
-  const now = state.color;
-  let pick = now;
-  while (pick === now) pick = pickColor();
+  const pick = pickColor();
   if (!still) {
     rolling = true; $("randomColor").disabled = true;
-    for (let k = 0, prev = now; k < 12; k++) {
-      let c;
-      do c = Math.floor(rand01() * PICKABLE); while (c === prev);
-      prev = state.color = c; syncColors(); render();
-      await new Promise(r => setTimeout(r, 30 + k * k * 2));
+    for (let k = 0; k < 6; k++) {
+      state.color = rand01() * HUE_MAX; syncColors(); render();
+      await new Promise(r => setTimeout(r, 35 + k * 10));
     }
     rolling = false; $("randomColor").disabled = false;
   }
   state.color = pick; syncColors(); render();
 });
-// 라디오 묶음처럼 방향키로 색 이동
-$("colors").addEventListener("keydown", e => {
-  const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-  if (!d) return;
-  e.preventDefault();
-  state.color = state.color < PICKABLE ? (state.color + d + PICKABLE) % PICKABLE : d > 0 ? 0 : PICKABLE - 1;
-  syncColors(); $("colors").children[state.color].focus(); render();
-});
+
 
 // 문구 입력: 넘버는 숫자만, 한두 자리는 칸을 벗어날 때 앞을 0으로 채움
 $("num").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 3); changed(); });
