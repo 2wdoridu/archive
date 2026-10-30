@@ -1,4 +1,4 @@
-// 시안용 게시물 데이터. Collected 이미지는 메트로폴리탄·게티·레이크스 미술관의 퍼블릭 도메인 이미지다.
+// 시안용 게시물 데이터. Collected 이미지는 메트로폴리탄·게티·레이크스 미술관의 퍼블릭 도메인 이미지와 공유마당 CC BY 이미지다.
 // 커스텀 이미지는 시안용 자리표시다.
 const MET = "https://images.metmuseum.org/CRDImages/ep/web-large/";
 const MET_DP = "https://images.metmuseum.org/CRDImages/dp/web-large/";
@@ -57,6 +57,10 @@ function design(base, forms = []) {
 }
 
 const POSTS = [
+  { id: "seguy-papillons-19", type: "collected", title: "나비, 도판 19", date: "1920", medium: "도안집 Papillons 수록 도판",
+    artist: "에밀알랭 세귀", source: "공유마당(한국저작권위원회)", license: "CC BY 4.0",
+    sourceUrl: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13375588&menuNo=200018",
+    img: "img/seguy-papillons-19.jpg", imgFull: "img/seguy-papillons-19-full.jpg" },
   { id: "gazette-bon-ton", type: "collected", title: "경이로운 나무, 아이들의 크리스마스 의상", date: "1914", medium: "석판화, 스텐실 손채색",
     artist: "샤를 마르탱", sourceUrl: "https://www.rijksmuseum.nl/en/collection/object/Gazette-du-Bon-Ton-1914-No-1-Pl-III-LArbre-Merveilleux-Costumes-denfants-pour-Noel--715df1a6ef636ab30d1d6921a4bfc438",
     source: "레이크스 미술관", license: "퍼블릭 도메인",

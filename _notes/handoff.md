@@ -43,16 +43,17 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 ## 4. 수정하고 배포하는 방법
 
 1. 파일을 고치고 로컬 서버로 확인한다. PC는 1920px과 1536px(1920 모니터 + Windows 배율 125%), 휴대폰은 390px로 확인한다.
-2. `index.html`, `detail.html`, `info.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261028-1`.
+2. `index.html`, `detail.html`, `info.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261030-1`.
 3. 커밋하고 `git push` 한다.
 4. 1~2분 뒤 공개 주소에 반영된다. 브라우저가 예전 파일을 보여 주면 Ctrl+F5.
 
 ## 5. 게시된 수집 원작
 
-모두 각 미술관 공식 데이터로 권리를 확인했다.
+모두 각 소장처·제공처 공식 데이터로 권리를 확인했다.
 
 | 식별자 | 작품 | 작가 | 연도 | 소장처 | 권리 | 원본 |
 |---|---|---|---|---|---|---|
+| `seguy-papillons-19` | 나비, 도판 19 | 에밀알랭 세귀(1877–1951) | 1920 | 공유마당(한국저작권위원회) | CC BY 4.0 | [링크](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13375588&menuNo=200018) |
 | `gazette-bon-ton` | 경이로운 나무, 아이들의 크리스마스 의상 | 샤를 마르탱 | 1914 | 레이크스 | Public Domain Mark | [링크](https://www.rijksmuseum.nl/en/collection/object/Gazette-du-Bon-Ton-1914-No-1-Pl-III-LArbre-Merveilleux-Costumes-denfants-pour-Noel--715df1a6ef636ab30d1d6921a4bfc438) |
 | `pentecost` | 오순절 | 작자 미상(레겐스부르크) | 1030–1040년경 | 게티 | CC0 | [링크](https://www.getty.edu/art/collection/object/103S5G) |
 | `christmas-card-1950` | 1950–1951년 성탄·신년 카드 | 작자 미상 | 1950 | 레이크스 | Public Domain Mark | [링크](https://www.rijksmuseum.nl/en/collection/object/Kerst-en-nieuwjaarswens-voor-1950-1951-van-Irene-en-Alfred-Brod--bf56bfb60a14d042443465e24c6488eb) |
@@ -64,6 +65,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 
 - `christmas-card-1950`: 카드 안쪽에 실제 개인 이름과 손글씨가 있어 제목에서 이름을 뺐다. 굿즈로 만들 때는 앞면 천사 그림만 쓴다.
 - `harpers-christmas`: 상표 문제로 커스텀·굿즈 원작으로 연결하지 않는다. [image-usage-cautions.md](image-usage-cautions.md) 참고.
+- `seguy-papillons-19`: 이미지 파일은 저장소 `img/`에 있다(표시용 800px, 원본 크기 1279px). CC BY라 사이트와 굿즈에 작가·작품명·출처(공유마당)·라이선스를 표기한다. 작가 사망 1951년으로 원작 저작권은 만료됐다.
 
 ### 권리 확인 결과 사용할 수 없는 작품
 
@@ -81,6 +83,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 - **게티:** 작품 IIIF 매니페스트의 `rights`가 CC0인지 확인한다. 작품 데이터의 CC BY 4.0은 게티가 쓴 설명 글에만 해당한다.
 - **시카고:** 공식 API `https://api.artic.edu/api/v1/artworks/{번호}`의 `is_public_domain`.
 - **레이크스:** 작품 페이지 Copyright 항목이 Public Domain Mark인지, 이미지 다운로드가 열려 있는지.
+- **공유마당:** 작품 페이지 이용조건이 `CC BY` 또는 `기증저작물 자유이용`인지 확인한다. `조건부이용`, `BY-NC`, `BY-ND`, `BY-SA`는 쓰지 않는다. 원본은 `/gongu/wrt/cmmn/wrtFileDownload.do?wrtSn={번호}&fileSn=1`로 받으며 gzip으로 압축되어 온다.
 - 공통: 저작권은 제작 연도가 아니라 작가 사망 후 70년 기준이다. 작자 미상은 공표 후 70년.
 
 ## 6. 남은 작업
