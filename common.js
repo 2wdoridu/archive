@@ -87,8 +87,8 @@ function initGalleries(root) {
   });
 }
 
-// 상세 내용. 상세 페이지와 홈의 상세 패널이 함께 쓴다.
-function renderDetail(p) {
+// 상세 내용. 상세 페이지와 홈의 상세 패널이 함께 쓴다. withAnalysis는 분석 기록 샘플 페이지에서만 켠다.
+function renderDetail(p, withAnalysis = false) {
   // 이 게시물 정보: 라벨 없이 제목 > 작가·재료 > 제작일 순으로 위계를 둔다
   const members = p.design ? POSTS.filter(q => q.design === p.design) : [];
   const info = `
@@ -117,7 +117,73 @@ function renderDetail(p) {
     <div class="detail__media">${p.photos ? gallery(full, p.photos) : `<div class="detail__frame">${imgTag(full, p.title)}</div>`}${credit}</div>
     <div class="detail__side">
       <div class="info">${info}</div>
+      ${withAnalysis ? analysis(p) : ""}
       ${related}
     </div>
   </article>`;
+}
+
+// 분석 기록: 색 구성과 디지털 지문은 이미지에서 계산하고(initAnalysis), 양식 유사도는 데이터의 styles 값을 쓴다
+const analysis = p => `
+  <section class="analysis" data-img="${p.img}"${p.tone ? ` data-tone="${p.tone}"` : ""}>
+    <div class="analysis__block">
+      <h2 class="related__title">색 구성</h2>
+      <div class="palette"><div class="palette__bar"></div><ul class="palette__list"></ul></div>
+    </div>
+    ${p.styles ? `<div class="analysis__block">
+      <h2 class="related__title">양식 유사도</h2>
+      <ul class="styles">${p.styles.map(([name, v]) => `
+        <li><span>${name}</span><span class="styles__track"><span style="width:${v * 100}%"></span></span><span>${v.toFixed(2)}</span></li>`).join("")}
+      </ul>
+    </div>` : ""}
+    <div class="analysis__block">
+      <h2 class="related__title">디지털 지문</h2>
+      <div class="print"><div class="print__grid"></div><span class="print__hex"></span></div>
+    </div>
+  </section>`;
+
+// 이미지를 작게 그려 주요 색 5개(k-평균)와 비율, 픽셀 데이터의 SHA-256 값을 구한다
+function initAnalysis(root) {
+  root.querySelectorAll(".analysis").forEach(sec => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = async () => {
+      const w = 72, h = Math.max(1, Math.round(72 * img.naturalHeight / img.naturalWidth));
+      const cv = Object.assign(document.createElement("canvas"), { width: w, height: h });
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      if (sec.dataset.tone) ctx.filter = `url(#${sec.dataset.tone})`;
+      ctx.drawImage(img, 0, 0, w, h);
+      let data;
+      try { data = ctx.getImageData(0, 0, w, h).data; } catch { sec.querySelector(".palette").textContent = "계산할 수 없음"; return; }
+
+      const px = [];
+      for (let i = 0; i < data.length; i += 4) if (data[i + 3] > 128) px.push([data[i], data[i + 1], data[i + 2]]);
+      const k = 5, dist = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+      const near = c => Math.min(...cents.map(m => dist(c, m)));
+      // 가장 먼 색을 차례로 고르는 방식으로 시작점을 정해 결과가 매번 같게 한다
+      const cents = [px[0]];
+      while (cents.length < k) cents.push(px.reduce((best, c) => near(c) > near(best) ? c : best));
+      let groups;
+      for (let it = 0; it < 8; it++) {
+        groups = cents.map(() => []);
+        px.forEach(c => { let j = 0; cents.forEach((m, n) => { if (dist(c, m) < dist(c, cents[j])) j = n; }); groups[j].push(c); });
+        groups.forEach((g, j) => { if (g.length) cents[j] = [0, 1, 2].map(ch => Math.round(g.reduce((s, c) => s + c[ch], 0) / g.length)); });
+      }
+      const hex = c => "#" + c.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+      const colors = cents.map((c, j) => ({ hex: hex(c), pct: groups[j].length / px.length * 100 }))
+        .filter(c => c.pct >= 0.5).sort((a, b) => b.pct - a.pct);
+      sec.querySelector(".palette__bar").innerHTML = colors.map(c => `<span style="background:${c.hex};flex:${c.pct}"></span>`).join("");
+      sec.querySelector(".palette__list").innerHTML = colors.map(c =>
+        `<li><span class="palette__chip" style="background:${c.hex}"></span>${c.hex}<span class="palette__pct">${c.pct.toFixed(1)}%</span></li>`).join("");
+
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+      const bits = [...digest].flatMap(b => [...Array(8)].map((_, i) => (b >> (7 - i)) & 1));
+      sec.querySelector(".print__grid").innerHTML = bits.map(b => `<span${b ? ' class="on"' : ""}></span>`).join("");
+      const hx = [...digest].map(b => b.toString(16).padStart(2, "0")).join("");
+      sec.querySelector(".print__hex").textContent = `SHA-256 ${hx.slice(0, 8)} ${hx.slice(8, 16)} … ${hx.slice(-8)}`;
+    };
+    // 화면에 이미 표시된 외부 이미지의 캐시(교차 출처 허용 없음)를 재사용하지 않도록 주소를 구분한다
+    const src = sec.dataset.img;
+    img.src = src.startsWith("http") ? src + (src.includes("?") ? "&" : "?") + "analysis" : src;
+  });
 }

@@ -1,5 +1,5 @@
 // 시안용 게시물 데이터. Collected 이미지는 메트로폴리탄·게티·레이크스 미술관의 퍼블릭 도메인 이미지와 공유마당 CC BY 이미지다.
-// 커스텀 이미지는 시안용 자리표시다.
+// 커스텀 이미지는 시안용 자리표시다. 양식 유사도(styles)는 계산값이 아닌 시안용 예시값이다.
 const MET = "https://images.metmuseum.org/CRDImages/ep/web-large/";
 const MET_DP = "https://images.metmuseum.org/CRDImages/dp/web-large/";
 const GETTY = "https://media.getty.edu/iiif/image/20afcc0d-d5cd-43e9-88c1-ba36486b7700/";
@@ -60,17 +60,21 @@ const POSTS = [
   { id: "seguy-papillons-19", type: "collected", title: "나비, 도판 19", date: "1920", medium: "도안집 Papillons 수록 도판",
     artist: "에밀알랭 세귀", source: "공유마당(한국저작권위원회)", license: "CC BY 4.0",
     sourceUrl: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13375588&menuNo=200018",
-    img: "img/seguy-papillons-19.jpg", imgFull: "img/seguy-papillons-19-full.jpg" },
+    img: "img/seguy-papillons-19.jpg", imgFull: "img/seguy-papillons-19-full.jpg",
+    styles: [["아르데코", 0.86], ["아르누보", 0.58], ["일본 판화", 0.31]] },
   { id: "gazette-bon-ton", type: "collected", title: "경이로운 나무, 아이들의 크리스마스 의상", date: "1914", medium: "석판화, 스텐실 손채색",
     artist: "샤를 마르탱", sourceUrl: "https://www.rijksmuseum.nl/en/collection/object/Gazette-du-Bon-Ton-1914-No-1-Pl-III-LArbre-Merveilleux-Costumes-denfants-pour-Noel--715df1a6ef636ab30d1d6921a4bfc438",
     source: "레이크스 미술관", license: "퍼블릭 도메인",
-    img: RIJKS + "dDUHw/full/800,/0/default.jpg", imgFull: RIJKS + "dDUHw/full/2000,/0/default.jpg" },
+    img: RIJKS + "dDUHw/full/800,/0/default.jpg", imgFull: RIJKS + "dDUHw/full/2000,/0/default.jpg",
+    styles: [["아르데코", 0.79], ["패션 일러스트", 0.74], ["아르누보", 0.42]] },
   { id: "pentecost", type: "collected", title: "오순절", date: "1030–1040년경", medium: "양피지에 템페라, 금박, 잉크",
     artist: "작자 미상(레겐스부르크)", source: "게티 미술관", license: "CC0",
     sourceUrl: "https://www.getty.edu/art/collection/object/103S5G",
-    img: GETTY + "full/800,/0/default.jpg", imgFull: GETTY + "full/2000,/0/default.jpg", customs: ["field-of-irises"] },
+    img: GETTY + "full/800,/0/default.jpg", imgFull: GETTY + "full/2000,/0/default.jpg", customs: ["field-of-irises"],
+    styles: [["중세 채색 필사본", 0.93], ["비잔틴", 0.61], ["로마네스크", 0.55]] },
   ...design({ id: "field-of-irises", type: "custom", title: "붓꽃 들판", date: "2026.10", medium: "디지털, 재채색",
-    img: MET + "DP346474.jpg", tone: "tone-blue", color: "#6f95dd", originals: ["pentecost", "christmas-1874"] }, ["머그", "포스터"]),
+    img: MET + "DP346474.jpg", tone: "tone-blue", color: "#6f95dd", originals: ["pentecost", "christmas-1874"],
+    styles: [["후기 인상주의", 0.77], ["듀오톤 그래픽", 0.52], ["청사진", 0.34]] }, ["머그", "포스터"]),
   { id: "christmas-card-1950", type: "collected", title: "1950–1951년 성탄·신년 카드", date: "1950", medium: "인쇄 카드",
     artist: "작자 미상", sourceUrl: "https://www.rijksmuseum.nl/en/collection/object/Kerst-en-nieuwjaarswens-voor-1950-1951-van-Irene-en-Alfred-Brod--bf56bfb60a14d042443465e24c6488eb",
     source: "레이크스 미술관", license: "퍼블릭 도메인",
@@ -80,6 +84,7 @@ const POSTS = [
     sourceUrl: "https://www.metmuseum.org/art/collection/search/382397",
     img: MET_DP + "DP813487.jpg", customs: ["irises-night", "harvest-blue"] },
   ...design({ id: "noon-plane", type: "work", title: "정오의 면", date: "2026.09", medium: "디지털", color: "#c8402c",
+    styles: [["바우하우스", 0.71], ["미니멀리즘", 0.66], ["구성주의", 0.48]],
     img: workSvg(800, 1000, '<rect width="800" height="1000" fill="#e9e4d8"/><rect x="120" y="140" width="560" height="420" fill="#1d1d1b"/><circle cx="560" cy="700" r="150" fill="#c8402c"/>') }, ["액자", "티셔츠"]),
   { id: "sweets-print", type: "collected", title: "여러 가지 과자와 맛있는 것들", date: "1848–1881", medium: "판화",
     artist: "루트키 & 크라넨뷔르흐 출판", sourceUrl: "https://www.rijksmuseum.nl/en/collection/object/Van-velerlei-gebak-en-ook-van-lekkernij-Is-deze-prent-voorzien-wat-uwe-keus-ook-zij-Beschouw-dus-lieve-jeugd-haar-steeds-tot-uw-vermaak-En-kies-er-alles-uit-dat-is-naar-uwen-smaak--05a50e4563ec840861bcc6527a621426",

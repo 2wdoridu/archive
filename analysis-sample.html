@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>붓꽃 들판 — Archive</title>
+<link rel="stylesheet" href="style.css?v=20261030-2">
+</head>
+<body>
+<header class="bar">
+  <a class="bar__name" href="index.html">Archive</a>
+  <nav class="bar__links">
+    <a href="https://www.instagram.com/" target="_blank" rel="noopener">@instagram_handle</a>
+    <a href="card/index.html">카드</a>
+    <a href="bread/index.html">빵 스티커</a>
+    <a href="info.html">정보</a>
+    <button type="button" class="bar__close detail__close">닫기 ×</button>
+  </nav>
+</header>
+
+<main id="post"></main>
+<nav class="pager"></nav>
+
+<script src="data.js?v=20261030-2"></script>
+<script src="common.js?v=20261030-2"></script>
+<script>
+// 분석 기록(색 구성·양식 유사도·디지털 지문) 샘플: ?id=게시물 식별자로 게시물을 고른다
+const post = byId[new URLSearchParams(location.search).get("id")] || byId["seguy-papillons-19"];
+document.title = `${post.title} — Archive`;
+document.getElementById("post").innerHTML = renderDetail(post, true);
+initAnalysis(document.getElementById("post"));
+initGalleries(document.getElementById("post"));
+
+// 닫기: 이 사이트 안에서 넘어왔으면 이전 화면으로, 링크로 바로 들어왔으면 홈으로 간다
+document.querySelector(".detail__close").addEventListener("click", () => {
+  const fromSite = document.referrer && new URL(document.referrer).origin === location.origin;
+  if (fromSite && history.length > 1) history.back();
+  else location.href = "index.html";
+});
+addEventListener("keydown", e => { if (e.key === "Escape") document.querySelector(".detail__close").click(); });
+
+const i = POSTS.indexOf(post);
+const prev = POSTS[i - 1], next = POSTS[i + 1];
+document.querySelector(".pager").innerHTML =
+  (prev ? `<a class="pill" href="analysis-sample.html?id=${prev.id}">← 이전</a>` : "<span></span>") +
+  (next ? `<a class="pill" href="analysis-sample.html?id=${next.id}">다음 →</a>` : "");
+</script>
+</body>
+</html>
