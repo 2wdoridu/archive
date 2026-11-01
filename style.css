@@ -52,6 +52,8 @@ img { display: block; width: 100%; height: auto; }
   font-family: var(--sans); font-stretch: 62%; font-weight: 900;
   line-height: .78; letter-spacing: -.01em; text-transform: uppercase;
   white-space: nowrap; padding: 8px 0 18px; width: max-content;
+  /* 큰 이름은 선(윤곽)으로 쓴다. 선 굵기는 index.html 의 fit() 이 글자 크기에 맞춰 정한다 */
+  color: transparent; -webkit-text-stroke: 1px var(--ink);
 }
 
 .filters {
@@ -244,4 +246,21 @@ a.chip:hover { border-color: var(--ink); color: var(--ink); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* 작업실: 만들기 도구 목록 */
+.studio { padding: 24px var(--side) 80px; }
+.studio__list { display: grid; gap: var(--gap); grid-template-columns: repeat(2, 1fr); list-style: none; }
+.studio__item a {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 42vh; padding: 20px; background: #e6e2da; border-radius: var(--radius);
+  transition: background-color .15s, color .15s;
+}
+.studio__item a:hover { background: var(--accent); color: #fff; }
+.studio__name { font-family: var(--sans); font-stretch: 62%; font-weight: 800; font-size: 28px; }
+.studio__desc { color: var(--muted); margin-top: 6px; }
+.studio__item a:hover .studio__desc { color: #fff; }
+@media (max-width: 760px) {
+  .studio__list { grid-template-columns: 1fr; }
+  .studio__item a { min-height: 34vh; }
 }

@@ -3,24 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Archive</title>
+<title>2w_doridu Archive</title>
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=20261101-1">
+<link rel="stylesheet" href="style.css?v=20261101-2">
 </head>
 <body>
 <header class="bar">
-  <a class="bar__name" href="index.html" data-hidden="true">Archive</a>
+  <a class="bar__name" href="index.html" data-hidden="true">2w_doridu</a>
   <nav class="bar__links">
-    <a href="https://www.instagram.com/" target="_blank" rel="noopener">@instagram_handle</a>
-    <a href="card/index.html">카드</a>
-    <a href="bread/index.html">빵 스티커</a>
+    <a href="studio.html">작업실</a>
     <a href="info.html">정보</a>
   </nav>
 </header>
 
-<section class="hero"><h1 class="hero__name">Archive</h1></section>
+<section class="hero"><h1 class="hero__name">2w_doridu Archive</h1></section>
 
 <nav class="filters" aria-label="구매 가능한 굿즈"></nav>
 <div class="browse">
@@ -31,8 +29,8 @@
   </aside>
 </div>
 
-<script src="data.js?v=20261101-1"></script>
-<script src="common.js?v=20261101-1"></script>
+<script src="data.js?v=20261101-2"></script>
+<script src="common.js?v=20261101-2"></script>
 <script>
 const grid = document.querySelector(".grid");
 const tiles = POSTS.map(p => {
@@ -127,7 +125,9 @@ const hero = document.querySelector(".hero__name");
 function fit() {
   hero.style.fontSize = "100px";
   const w = hero.parentElement.clientWidth - parseFloat(getComputedStyle(hero.parentElement).paddingLeft) * 2;
-  hero.style.fontSize = (100 * w / hero.getBoundingClientRect().width) + "px";
+  const fs = 100 * w / hero.getBoundingClientRect().width;
+  hero.style.fontSize = fs + "px";
+  hero.style.webkitTextStrokeWidth = Math.max(1, fs / 60) + "px";
 }
 document.fonts.ready.then(fit);
 addEventListener("resize", fit);

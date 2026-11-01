@@ -3,19 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>붓꽃 들판 — Archive</title>
+<title>붓꽃 들판 — 2w_doridu Archive</title>
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=20261101-1">
+<link rel="stylesheet" href="style.css?v=20261101-2">
 </head>
 <body>
 <header class="bar">
-  <a class="bar__name" href="index.html">Archive</a>
+  <a class="bar__name" href="index.html">2w_doridu</a>
   <nav class="bar__links">
-    <a href="https://www.instagram.com/" target="_blank" rel="noopener">@instagram_handle</a>
-    <a href="card/index.html">카드</a>
-    <a href="bread/index.html">빵 스티커</a>
+    <a href="studio.html">작업실</a>
     <a href="info.html">정보</a>
     <button type="button" class="bar__close detail__close">닫기 ×</button>
   </nav>
@@ -24,12 +22,12 @@
 <main id="post"></main>
 <nav class="pager"></nav>
 
-<script src="data.js?v=20261101-1"></script>
-<script src="common.js?v=20261101-1"></script>
+<script src="data.js?v=20261101-2"></script>
+<script src="common.js?v=20261101-2"></script>
 <script>
 // 시안: ?id=게시물 식별자로 게시물을 고른다
 const post = byId[new URLSearchParams(location.search).get("id")] || byId["field-of-irises"];
-document.title = `${post.title} — Archive`;
+document.title = `${post.title} — 2w_doridu Archive`;
 document.getElementById("post").innerHTML = renderDetail(post);
 initGalleries(document.getElementById("post"));
 
