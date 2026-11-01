@@ -51,15 +51,19 @@ img { display: block; width: 100%; height: auto; }
 .hero__name {
   font-family: var(--sans); font-stretch: 62%; font-weight: 900;
   line-height: .78; letter-spacing: -.01em; text-transform: uppercase;
-  white-space: nowrap; padding: 8px 0 18px; width: max-content;
-  /* 큰 이름은 선(윤곽)으로 쓴다. 선 굵기는 index.html 의 fit() 이 글자 크기에 맞춰 정한다 */
-  color: transparent; -webkit-text-stroke: 1px var(--ink);
+  white-space: nowrap; padding: .06em 0 .22em; width: max-content;
+}
+/* 큰 이름 중 계정명만 선(윤곽)으로 쓰고 Archive 는 채운다.
+   선 굵기는 index.html 의 fit() 이 글자 크기에 맞춰 정한다 */
+.hero__outline { color: transparent; -webkit-text-stroke: 1px var(--ink);
 }
 
 .filters {
   display: flex; flex-wrap: wrap; gap: 4px 18px;
   padding: 14px var(--side) 12px;
 }
+/* display:flex 가 hidden 속성을 덮으므로 따로 지정한다 */
+.filters[hidden] { display: none; }
 .filters button {
   font: inherit; color: var(--muted); background: none; border: 0; cursor: pointer;
 }

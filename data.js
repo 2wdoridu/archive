@@ -56,7 +56,7 @@ function design(base, forms = []) {
   return [head, ...goods];
 }
 
-const POSTS = [
+const ALL_POSTS = [
   { id: "seguy-papillons-19", type: "collected", title: "나비, 도판 19", date: "1920", medium: "도안집 Papillons 수록 도판",
     artist: "에밀알랭 세귀", source: "공유마당(한국저작권위원회)", license: "CC BY 4.0",
     sourceUrl: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13375588&menuNo=200018",
@@ -116,6 +116,27 @@ const POSTS = [
   ...design({ id: "half-moon", type: "work", title: "반달", date: "2026.06", medium: "디지털", color: "#1d1d1b",
     img: workSvg(800, 800, '<rect width="800" height="800" fill="#1d1d1b"/><path d="M400 180a220 220 0 0 1 0 440z" fill="#efe9dc"/>') }, ["머그"]),
 ];
+
+// 숨김 처리. 데이터는 지우지 않고 피드·상세·필터에서만 뺀다. 다시 보이게 하려면 여기서 빼면 된다.
+// - 커스텀 4개: 메트로폴리탄 원본 위에 색만 바꾼 시안용 이미지라 권리 확인이 안 됐다.
+// - 작품(work) 4개: 코드로 그린 도형 자리표시라 실제 작품이 아니다.
+const HIDDEN = new Set([
+  "field-of-irises",  // 붓꽃 들판
+  "irises-night",     // 밤의 붓꽃
+  "bubbles-again",    // 다시, 비눗방울
+  "harvest-blue",     // 푸른 수확
+  "noon-plane",       // 정오의 면
+  "two-stones",       // 두 개의 돌
+  "window-study",     // 창 연구
+  "half-moon",        // 반달
+]);
+
+const POSTS = ALL_POSTS.filter(p => !HIDDEN.has(p.design || p.id));
+// 숨긴 게시물로 가는 연결(원작 ↔ 커스텀)도 끊는다
+POSTS.forEach(p => {
+  if (p.customs) p.customs = p.customs.filter(id => !HIDDEN.has(id));
+  if (p.originals) p.originals = p.originals.filter(id => !HIDDEN.has(id));
+});
 
 const byId = Object.fromEntries(POSTS.map(p => [p.id, p]));
 const GOODS_ORDER = ["액자", "머그", "포스터", "티셔츠"];
