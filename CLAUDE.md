@@ -10,7 +10,7 @@
 ## 작업 방식
 - 화면을 바꾸면 로컬 서버(`node _tools/serve.mjs 4321`)로 열어 PC 1920px·1536px, 휴대폰 390px 캡처로 확인한 뒤 보고한다.
 - 배포 전 `index.html`, `detail.html`, `info.html`의 CSS·JS 버전 표시(`?v=`)를 올린다.
-- 배포는 `git push`. 1~2분 뒤 https://2wdoridu.github.io/archive/ 에 반영되면 실제 주소에서도 확인한다.
+- 배포는 `git push`. 1~2분 뒤 https://doridu.com/ 에 반영되면 실제 주소에서도 확인한다.
 - 화면 문구는 한국어. 사이트 이름·계정·라이선스 표기처럼 원래 표기가 정해진 것만 원어로 둔다.
 
 ## 수집 이미지
