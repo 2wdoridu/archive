@@ -34,7 +34,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import * as BufferUtils from "three/addons/utils/BufferGeometryUtils.js";
 import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { buildWoman } from "./woman.js?v=78";
+import { buildWoman } from "./woman.js?v=79";
 import { buildMan } from "./man.js?v=24";
 
 // 인스타그램 세로 3:4
@@ -67,6 +67,8 @@ function gradientTexture(stops) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 scene.background = gradientTexture([[0, "#1f5fd0"], [0.45, "#3f7fe0"], [0.8, "#86a8e6"], [1, "#c3c8e2"]]);
+// 하루 흐름(낮 → 노을 → 밤 → 새벽)에 쓰는 조명 목록. 각 장면 조명을 만들 때 여기에 넣음
+const LIT = {};
 scene.fog = new THREE.Fog(HAZE, 120, 650);
 
 // 애니 셀 재질(sakura-crossing 방식): 햇빛을 3단계 평평한 띠로 끊는 램프. 툰 재질에 없는 옵션(거칠기·금속성 등)은 버림
@@ -458,8 +460,28 @@ const rock = photoRock(SLAB, 36, 3);
 const FAIRIES = [];
 // 부드러운 빛 무늬(가운데 밝고 바깥으로 사라짐)
 const GLOW_TEX = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"), g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.25, "rgba(255,255,255,0.55)"); g.addColorStop(0.6, "rgba(255,255,255,0.12)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); return t; })();
+// 요정이 지나간 자리에 남는 반짝이 가루: 아주 작은 빛 알갱이가 천천히 가라앉으며 깜빡이다 사라짐
+const SPARK = (() => {
+  const N = 420, LIFE = 2.4, pos = new Float32Array(N * 3), col = new Float32Array(N * 3), birth = new Float32Array(N).fill(-99), vel = new Float32Array(N * 3), base = new THREE.Color("#cfe9ff");
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ map: GLOW_TEX, size: 0.07, sizeAttenuation: true, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  pts.frustumCulled = false; scene.add(pts);
+  let head = 0, last = 0;
+  return {
+    emit(p, t) { const i = head++ % N; pos.set([p.x + (Math.random() - 0.5) * 0.12, p.y + (Math.random() - 0.5) * 0.12, p.z], i * 3); vel.set([(Math.random() - 0.5) * 0.04, -0.04 - Math.random() * 0.05, 0], i * 3); birth[i] = t; },
+    update(t) {
+      const dt = Math.min(0.05, t - last); last = t;
+      for (let i = 0; i < N; i++) {
+        const age = t - birth[i]; let a = 0;
+        if (age < LIFE) { a = Math.pow(1 - age / LIFE, 1.6) * (0.55 + 0.45 * Math.sin(t * 7 + i * 1.7)); for (let j = 0; j < 3; j++) pos[i * 3 + j] += vel[i * 3 + j] * dt; }
+        col[i * 3] = base.r * a; col[i * 3 + 1] = base.g * a; col[i * 3 + 2] = base.b * a;
+      }
+      geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true;
+    },
+  };
+})();
 function makeFairy(phase) {
-  // 끝이 꺾인 흰 고깔을 쓴 하늘색 빛무리: 작은 빛 알갱이 여러 개가 모여 일렁이고, 능선 위를 이리저리 떠다니며 지나간 자리에 빛 알갱이 자취를 남김
+  // 끝이 꺾인 흰 고깔을 쓴 하늘색 빛무리: 작은 빛 알갱이 여러 개가 모여 일렁이고, 자취는 남기지 않음
   const f = new THREE.Group(), GLOW = new THREE.Color("#7cc8ff");
   const sp = (parent, scale, op) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW_TEX, color: GLOW, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending })); s.scale.setScalar(scale); parent.add(s); return s; };
   const outer = sp(f, 2.6, 0.35), core = sp(f, 0.55, 0.7);
@@ -469,29 +491,30 @@ function makeFairy(phase) {
     const curve = new THREE.CatmullRomCurve3(pts), geo = new THREE.TubeGeometry(curve, 28, 1, 16, false), pp = geo.attributes.position;
     for (let i = 0; i <= 28; i++) { const t = i / 28, c = curve.getPointAt(t), r = 0.11 * (1 - t) + 0.006; for (let j = 0; j <= 16; j++) { const k = i * 17 + j, v = new THREE.Vector3(pp.getX(k), pp.getY(k), pp.getZ(k)).sub(c).normalize().multiplyScalar(r).add(c); pp.setXYZ(k, v.x, v.y, v.z); } }
     geo.computeVertexNormals();
-    const hatM = mat("#ffffff", { emissive: new THREE.Color("#6e7e8c"), emissiveIntensity: 0.6 });
+    const hatM = mat("#ffffff", { emissive: new THREE.Color("#d6ecff"), emissiveIntensity: 0.85, transparent: true, opacity: 0.92, depthWrite: false });   // 빛을 머금은 흰 고깔(깊이를 안 써서 먹선이 생기지 않음)
     f.userData.hat = new THREE.Group(); f.add(f.userData.hat); f.userData.hat.add(new THREE.Mesh(geo, hatM));
     const brim = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.02, 8, 24), hatM); brim.rotation.x = Math.PI / 2; brim.position.y = 0.1; f.userData.hat.add(brim);
     const pom = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), hatM); pom.position.copy(pts[14]); f.userData.hat.add(pom); }
-  // 자취: 장면에 따로 두고, 지나온 자리를 따라 점점 작고 흐리게
-  const trailG = new THREE.Group(); scene.add(trailG); const trail = []; for (let i = 0; i < 10; i++) trail.push(sp(trailG, 0.14 * (1 - i * 0.07), 0.6));
-  const hist = [];
   const prev = new THREE.Vector3();
   f.userData.update = t => {
     const path = f.userData.path; if (!path) return;
-    // 무리가 함께 능선을 따라 오른쪽→왼쪽으로(마리마다 무리 안 자리만 조금 다름). 끝에서 서서히 사라졌다 처음에서 다시 나타남
-    const u = ((t * 0.035 + f.userData.lead) % 1 + 1) % 1, pos = path.getPointAt(u), fade = Math.min(1, u / 0.08, (1 - u) / 0.08);
-    f.position.set(pos.x, pos.y + f.userData.lift + 0.12 * Math.sin(t * 1.4 + phase), pos.z + f.userData.side + 0.06 * Math.sin(t * 0.9 + phase));
+    // 몇 초에 한 번 무리가 화면 한쪽 끝에서 반대쪽 끝까지 미끄러지듯 지나감(오른쪽→왼쪽, 다음엔 왼쪽→오른쪽).
+    // 들어올 때 살며시 빨라졌다 나갈 때 살며시 느려지고, 마리마다 물결치듯 아주 완만하게 오르내림
+    const P = 10, D = 3.6, tt = t - f.userData.lead * 14, tau = ((tt % P) + P) % P, sp = Math.min(1, tau / D);
+    const u = 0.75 * sp + 0.25 * (0.5 - 0.5 * Math.cos(Math.PI * sp));
+    const pos = path()[Math.floor(tt / P) & 1].getPointAt(u);
+    const fade = tau > D ? 0 : Math.min(1, sp / 0.06, (1 - sp) / 0.06);
+    f.position.set(pos.x, pos.y + f.userData.lift + 0.07 * Math.sin(sp * Math.PI * 2.2 + phase), pos.z + f.userData.side);
+    if (fade > 0.3 && Math.random() < 0.45) SPARK.emit(f.position, t);
     f.visible = fade > 0.02; f.userData.fade = fade;
     const vx = f.position.x - prev.x, vy = f.position.y - prev.y; prev.copy(f.position);
     f.userData.hat.rotation.z = THREE.MathUtils.clamp(vx * 18, -0.5, 0.5); f.userData.hat.rotation.x = THREE.MathUtils.clamp(-vy * 12, -0.3, 0.3);   // 가는 방향 반대로 모자가 살짝 기욺
-    // 반딧불이처럼 천천히 밝아졌다 어두워짐
-    const k = Math.pow(0.5 + 0.5 * Math.sin(t * 0.8 + phase * 1.7), 2.2);
-    const fd = f.userData.fade ?? 1; core.material.opacity = (0.35 + 0.55 * k) * fd; outer.material.opacity = (0.1 + 0.4 * k) * fd; outer.scale.setScalar(2.0 + 1.3 * k);
+    // 반딧불이처럼: 마리마다 제 박자로 스르르 밝아졌다가 천천히 꺼짐(완전히 꺼지지는 않고 은은하게 남음)
+    const per = 2.2 + 0.5 * Math.sin(phase * 2.3), x = (((t + phase * 0.9) / per) % 1 + 1) % 1;
+    const flash = x < 0.3 ? Math.sin(x / 0.3 * Math.PI / 2) ** 2 : Math.pow(Math.max(0, 1 - (x - 0.3) / 0.6), 2);
+    const k = 0.22 + 0.78 * flash;
+    const fd = f.userData.fade ?? 1; core.material.opacity = (0.3 + 0.5 * k) * fd; core.scale.setScalar(0.4 + 0.25 * k); outer.material.opacity = (0.12 + 0.5 * k) * fd; outer.scale.setScalar(2.2 + 2.2 * k);
     motes.forEach((m, i) => { const a = m.a + t * (0.9 + i * 0.07); m.s.position.set(Math.cos(a) * m.r, m.h + 0.03 * Math.sin(t * 1.6 + i), Math.sin(a) * m.r); m.s.material.opacity = (0.4 + 0.5 * k) * (0.6 + 0.4 * Math.sin(t * 2.3 + i * 1.3)) * fd; });
-    if (hist.length && hist[0].distanceTo(f.position) > 1) hist.length = 0;   // 처음으로 돌아가면 자취를 지움
-    hist.unshift(f.position.clone()); if (hist.length > 40) hist.pop();
-    trail.forEach((sp2, i) => { const h = hist[Math.min(hist.length - 1, (i + 1) * 4)]; sp2.position.copy(h).add(new THREE.Vector3(0, -0.02 * i, 0)); sp2.material.opacity = (0.15 + 0.45 * k) * (1 - i * 0.09) * fd; sp2.scale.setScalar(0.5 * f.scale.x * (1 - i * 0.07)); });
   };
   FAIRIES.push(f);
   return f;
@@ -511,13 +534,21 @@ function makeFairy(phase) {
   // 바위마다 따로 심음(심는 순서는 그대로)
   for (let i = 0; i < pts.length;) { let j = i; while (j < pts.length && ks[j] === ks[i]) j++; plantGrass(pts.slice(i, j), 1.4, ks.slice(i, j), qs[i]); i = j; }
 }
-// 요정 여섯 마리: 앞 바위 능선을 따라 높낮이·크기를 조금씩 달리해 줄지어 지나감(나는 방향으로 기울임)
+// 요정 여섯 마리: 높낮이·크기를 조금씩 달리한 무리가 화면을 가로질러 지나감(나는 방향으로 기울임)
 {
-  const ridge = rockTops.filter(r => r[2] === 36), hats = ["#c9a7e8", "#f2a7b8", "#9fd3c7", "#f3d48a", "#a9c4f0", "#f0b48c"], glows = ["#fff1c4", "#ffe2ec", "#e6fff4", "#fff6d0", "#e8f0ff", "#ffe8d6"];
-  const pts = []; for (const [a, b] of ridge) for (let t = 0; t < 1; t += 0.5) pts.push(a.clone().lerp(b, t));
-  pts.sort((p, q) => p.x - q.x);
-  // 능선을 따라 오른쪽 끝에서 왼쪽으로 가는 경로(능선보다 조금 위, 바위 앞면보다 살짝 뒤)
-  const path = new THREE.CatmullRomCurve3(pts.slice(Math.floor(pts.length * 0.3)).reverse().map(p => new THREE.Vector3(p.x, p.y + 0.55, 35.1)));
+  const hats = ["#c9a7e8", "#f2a7b8", "#9fd3c7", "#f3d48a", "#a9c4f0", "#f0b48c"], glows = ["#fff1c4", "#ffe2ec", "#e6fff4", "#fff6d0", "#e8f0ff", "#ffe8d6"];
+  // 화면 밖 오른쪽에서 왼쪽 밖까지 완만한 호(바위 앞면보다 살짝 앞 면 위). 카메라 화면 맞춤이 끝난 뒤 처음 쓸 때 만듦
+  let paths = null;
+  const path = () => paths || (paths = [1, -1].map(dir => {
+    const pl = new THREE.Plane(new THREE.Vector3(0, 0, 1), -35.1), ray = new THREE.Ray(), out = [];
+    camera.updateMatrixWorld();
+    for (let i = 0; i <= 12; i++) {
+      const x = dir * (1.25 - i * 2.5 / 12), y = 0.44 + 0.035 * x * dir + 0.05 * (1 - x * x) + 0.025 * Math.sin(x * Math.PI * 1.3);   // 가면서 조금씩 내려오는 완만한 물결
+      const v = new THREE.Vector3(x, y, 0.5).unproject(camera);
+      ray.set(camera.position, v.sub(camera.position).normalize()); out.push(ray.intersectPlane(pl, new THREE.Vector3()));
+    }
+    return new THREE.CatmullRomCurve3(out);
+  }));
   const N = 6;
   for (let i = 0; i < N; i++) {
     const f = makeFairy(i * 1.37); f.scale.setScalar(0.24 + 0.05 * Math.sin(i * 1.7));
@@ -714,7 +745,9 @@ truckCam.lookAt(0, 1.45, 0);   // 낮은 데서 올려다봄
   tSun.shadow.bias = -0.0005; tSun.shadow.normalBias = 0.02;
   const tBounce = new THREE.DirectionalLight("#9fb0ff", 0.55); tBounce.position.set(4, 3, -3);
   const tRim = new THREE.DirectionalLight("#ffd9b0", 1.3); tRim.position.set(-2.5, 4.5, -6);   // 뒤 위쪽에서 오는 따뜻한 역광: 인물 가장자리에 빛 테두리
-  truckScene.add(tSun, tBounce, tRim, new THREE.HemisphereLight("#c3cdff", "#ab8cb8", 0.95));
+  const tHemi = new THREE.HemisphereLight("#c3cdff", "#ab8cb8", 0.95);
+  truckScene.add(tSun, tBounce, tRim, tHemi);
+  LIT.truck = { sun: tSun, bounce: tBounce, rim: tRim, hemi: tHemi };
   // 무대 바닥과 그 위 흙길(트럭 앞뒤로 곧게 뻗음)
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(14, 22), mat("#c9a593"));
   ground.rotation.x = -Math.PI / 2; ground.position.z = 6; ground.receiveShadow = true; truckScene.add(ground);
@@ -831,8 +864,57 @@ Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, n
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05; sun.shadow.radius = 3;
 scene.add(sun);
 // 애니 배경처럼 그림자가 어둡지 않고 색이 있게: 반대편에서 오는 차가운 반사광과 보랏빛 바닥의 하늘빛
-{ const bounce = new THREE.DirectionalLight("#9fb0ff", 0.55); bounce.position.copy(SUN_DIR).multiplyScalar(-60).setY(20); scene.add(bounce); }
-scene.add(new THREE.HemisphereLight("#c3cdff", "#ab8cb8", 0.95));
+{ const bounce = new THREE.DirectionalLight("#9fb0ff", 0.55); bounce.position.copy(SUN_DIR).multiplyScalar(-60).setY(20); scene.add(bounce);
+  const hemi = new THREE.HemisphereLight("#c3cdff", "#ab8cb8", 0.95); scene.add(hemi);
+  LIT.bg = { sun, bounce, hemi }; }
+
+// ── 하루 흐름: 해가 왼쪽 산 너머에서 떠서 하늘을 가로질러 오른쪽 산 너머로 지고, 노을이 지나 별이 뜨는 밤이 됐다가 다시 새벽
+const DAY = (() => {
+  const T = 60, DAYPART = 0.62, START = 10;   // 한 바퀴 60초, 그중 낮 62%. 열었을 때 해가 이미 떠 있는 자리에서 시작
+  const glowTex = (inner, stops) => { const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d"), g = x.createRadialGradient(128, 128, 0, 128, 128, 128); stops.forEach(([o, col]) => g.addColorStop(o, col)); x.fillStyle = g; x.fillRect(0, 0, 256, 256); if (inner) inner(x); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const sunTex = glowTex(null, [[0, "rgba(255,255,250,1)"], [0.17, "rgba(255,250,235,1)"], [0.2, "rgba(255,236,200,0.75)"], [0.32, "rgba(255,220,170,0.28)"], [0.6, "rgba(255,210,160,0.08)"], [1, "rgba(255,200,150,0)"]]);
+  // 보름달: 살짝 노르스름한 둥근 달과 푸른 달무리, 옅은 얼룩
+  const moonTex = glowTex(x => { x.fillStyle = "rgba(200,190,170,0.35)"; for (const [cx, cy, r] of [[118, 120, 9], [136, 134, 6], [124, 140, 4], [138, 116, 5]]) { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); } },
+    [[0, "rgba(255,252,238,1)"], [0.13, "rgba(255,248,225,1)"], [0.155, "rgba(225,232,255,0.45)"], [0.3, "rgba(200,215,255,0.14)"], [0.6, "rgba(190,205,255,0.04)"], [1, "rgba(190,205,255,0)"]]);
+  const spr = (tex, size) => { const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false })); m.scale.setScalar(size); m.renderOrder = -5; scene.add(m); return m; };
+  const sunS = spr(sunTex, 120), moonS = spr(moonTex, 70);
+  const C = h => new THREE.Color(h), mix3 = (a, b, c, d, n) => a.clone().lerp(b, d).lerp(c, n);
+  const SKY = { day: ["#1f5fd0", "#3f7fe0", "#86a8e6", "#c3c8e2"], dusk: ["#2c3a8a", "#6a5aa8", "#e7889a", "#ffc58a"], night: ["#050820", "#0b1236", "#18204e", "#2a2d5c"] };
+  const skyC = Object.fromEntries(Object.entries(SKY).map(([k, v]) => [k, v.map(C)]));
+  const sky = scene.background, skyCtx = sky.image.getContext("2d");
+  const FOG = [C("#c8cfe8"), C("#e8b0a8"), C("#1c2040")];
+  const base = {};
+  let cam0 = null;
+  const dirAt = (nx, ny) => new THREE.Vector3(nx, ny, 0.5).unproject(cam0).sub(cam0.position).normalize();
+  return {
+    state: { night: 0, dusk: 0 },
+    update(t) {
+      if (!cam0) { cam0 = camera.clone(); cam0.updateMatrixWorld(); for (const g of ["bg", "truck"]) for (const [k, l] of Object.entries(LIT[g])) base[g + k] = { c: l.color.clone(), i: l.intensity, gc: l.groundColor && l.groundColor.clone() }; }
+      const p = (((t + START + (window.__dayOff || 0)) / T) % 1 + 1) % 1;   // __dayOff: 점검용으로 시간 건너뛰기
+      let elev, sunS_ = -1, moonQ = -1;
+      if (p < DAYPART) { sunS_ = p / DAYPART; elev = Math.sin(Math.PI * sunS_); } else { moonQ = (p - DAYPART) / (1 - DAYPART); elev = -0.6 * Math.sin(Math.PI * moonQ); }
+      const dusk = Math.exp(-(((elev - 0.02) / 0.22) ** 2)), night = 1 - THREE.MathUtils.smoothstep(elev, -0.2, 0.06);
+      this.state.night = night; this.state.dusk = dusk;
+      // 하늘
+      const cols = skyC.day.map((c, i) => mix3(c, skyC.dusk[i], skyC.night[i], dusk * (1 - night), night));
+      const lg = skyCtx.createLinearGradient(0, 0, 0, 256); [0, 0.45, 0.8, 1].forEach((o, i) => lg.addColorStop(o, "#" + cols[i].getHexString())); skyCtx.fillStyle = lg; skyCtx.fillRect(0, 0, 4, 256); sky.needsUpdate = true;
+      scene.fog.color.copy(mix3(FOG[0], FOG[1], FOG[2], dusk * (1 - night), night));
+      // 해·달: 하늘에서 아주 먼 곳(산 뒤)에 둬서 산에 가려지며 짐
+      if (sunS_ >= 0) { const d = dirAt(-1.12 + 2.24 * sunS_, 0.5 + 0.42 * Math.sin(Math.PI * sunS_)); sunS.position.copy(camera.position).addScaledVector(d, 360); sunS.visible = true; sunS.material.color.copy(C("#ffffff").lerp(C("#ff9a5a"), dusk)); } else sunS.visible = false;
+      if (moonQ >= 0) { const d = dirAt(-0.9 + 1.8 * moonQ, 0.62 + 0.28 * Math.sin(Math.PI * moonQ)); moonS.position.copy(camera.position).addScaledVector(d, 360); moonS.visible = true; moonS.material.opacity = THREE.MathUtils.smoothstep(night, 0.3, 0.9); } else moonS.visible = false;
+      // 조명: 낮 → 노을(주황, 약간 어둡게) → 밤(푸른 달빛)
+      const DUSK_SUN = C("#ff9a5c"), MOON = C("#8ea6ff");
+      for (const g of ["bg", "truck"]) {
+        const L = LIT[g], b = k => base[g + k];
+        L.sun.color.copy(mix3(b("sun").c, DUSK_SUN, MOON, dusk * (1 - night), night)); L.sun.intensity = b("sun").i * (1 - 0.45 * dusk) * (1 - night) + 0.55 * night;
+        L.bounce.intensity = b("bounce").i * (1 - 0.7 * night);
+        L.hemi.color.copy(mix3(b("hemi").c, C("#e8b4c8"), C("#3b4a8c"), dusk * (1 - night), night)); L.hemi.groundColor.copy(mix3(b("hemi").gc, C("#c08a8a"), C("#2a2440"), dusk * (1 - night), night)); L.hemi.intensity = b("hemi").i * (1 - 0.25 * night);
+        if (L.rim) { L.rim.color.copy(mix3(b("rim").c, C("#ff8a4a"), C("#a8b8ff"), dusk * (1 - night), night)); L.rim.intensity = b("rim").i * (1 + 0.7 * dusk * (1 - night)) * (1 - 0.5 * night); }
+      }
+      post.uniforms.uNight.value = night; post.uniforms.uDusk.value = dusk * (1 - night); post.uniforms.uTime.value = t;
+    },
+  };
+})();
 
 // 화면 처리(sakura-crossing 방식): 배경과 트럭 장면을 각각 색+깊이로 1.5배 해상도에 그림 →
 // 깊이의 2차 차분(라플라시안)으로 실제 윤곽·접힘에만 먹선, 멀수록 옅게 → 트럭을 배경 위에 합성 →
@@ -849,10 +931,12 @@ const post = new THREE.ShaderMaterial({
     tBg: { value: rtBg.texture }, dBg: { value: rtBg.depthTexture }, tFg: { value: rtFg.texture }, dFg: { value: rtFg.depthTexture },
     nfBg: { value: new THREE.Vector2(camera.near, camera.far) }, nfFg: { value: new THREE.Vector2(0.05, 80) },
     texel: { value: new THREE.Vector2(2.2 / (W * PR), 2.2 / (H * PR)) }, ink: { value: new THREE.Color("#3b2c40") },
+    uNight: { value: 0 }, uDusk: { value: 0 }, uTime: { value: 0 },
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`,
   fragmentShader: `
-    uniform sampler2D tBg, dBg, tFg, dFg; uniform vec2 nfBg, nfFg, texel; uniform vec3 ink; varying vec2 vUv;
+    uniform sampler2D tBg, dBg, tFg, dFg; uniform vec2 nfBg, nfFg, texel; uniform vec3 ink; uniform float uNight, uDusk, uTime; varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float lin(sampler2D d, vec2 uv, vec2 nf){ float z = texture2D(d, uv).x; return nf.x * nf.y / (nf.y - z * (nf.y - nf.x)); }
     // 깊이의 2차 차분: 평면에서는 0, 실제 윤곽과 접힘에서만 커짐. 바깥 윤곽(볼록)은 진하게, 안쪽 모서리는 연하게
     float edge(sampler2D d, vec2 uv, vec2 nf, float far0, float far1){
@@ -880,7 +964,10 @@ const post = new THREE.ShaderMaterial({
       col = mix(col, ink, 0.8 * thick(dBg, vUv, nfBg, 25., 160.));
       // 공기 원근: 배경은 멀수록 옅은 보랏빛 안개에 묻히고 채도가 낮아짐(하늘도 부드럽게)
       { float raw = texture2D(dBg, vUv).x, sky = step(0.99999, raw), dz = lin(dBg, vUv, nfBg), far = smoothstep(30., 420., dz) * (1. - sky), lb = dot(col, vec3(.299, .587, .114));
-        col = mix(col, vec3(lb), 0.28 * far + 0.12 * sky); col = mix(col, vec3(0.86, 0.80, 0.88), 0.30 * far + 0.14 * sky); }   // 하늘은 약하게만(맑은 파랑 유지)
+        vec3 hz = mix(mix(vec3(0.86, 0.80, 0.88), vec3(0.93, 0.70, 0.68), uDusk), vec3(0.16, 0.18, 0.32), uNight);   // 안개 빛: 낮 보랏빛 → 노을 분홍 → 밤 남색
+        col = mix(col, vec3(lb), 0.28 * far + 0.12 * sky); col = mix(col, hz, 0.30 * far + 0.14 * sky);   // 하늘은 약하게만(맑은 파랑 유지)
+        // 밤하늘 별: 하늘에만, 천천히 반짝임
+        if (sky > 0.5 && uNight > 0.01) { vec2 g = vUv * vec2(160., 210.), id = floor(g); float h = hash(id); if (h > 0.972) { vec2 o = vec2(hash(id + 3.1), hash(id + 7.7)) - 0.5; float d = length(fract(g) - 0.5 - o * 0.6); float tw = 0.55 + 0.45 * sin(uTime * (1.2 + h * 3.) + h * 40.); col += vec3(0.95, 0.95, 1.) * smoothstep(0.16, 0.0, d) * tw * uNight; } } }
       vec4 fg = texture2D(tFg, vUv);
       // 인물·트럭(앞 장면)은 채도와 밝기를 살짝 올려 배경에서 돋보이게
       { float lf = dot(fg.rgb, vec3(.299, .587, .114)); fg.rgb = mix(vec3(lf), fg.rgb, 1.12) * 1.04; }
@@ -895,6 +982,8 @@ const post = new THREE.ShaderMaterial({
       // 대비를 살짝 올리고 밝은 곳은 따뜻하게
       col = mix(col, col * col * (3. - 2. * col), 0.22);
       col *= mix(vec3(1.0), vec3(1.04, 1.0, 0.95), smoothstep(0.45, 0.9, l));
+      // 밤: 전체를 푸르고 어둡게, 노을: 따뜻하게
+      col *= mix(mix(vec3(1.0), vec3(1.06, 0.95, 0.9), uDusk), vec3(0.78, 0.82, 1.02), uNight);
       // 가장자리를 살짝 어둡게 해 시선이 가운데 두 사람에게 모이게
       { vec2 q = (vUv - vec2(0.5, 0.46)) * vec2(1.1, 0.95); col *= mix(0.8, 1.0, smoothstep(0.78, 0.3, length(q))); }
       gl_FragColor = vec4(col, 1.);
@@ -922,7 +1011,7 @@ const TILT_RIGHT = new THREE.Vector3().crossVectors(LOOK.clone().sub(CAM), UP).n
 const TRUCK_PIV = new THREE.Vector3(0, 1.45, 0), TRUCK_OFF = new THREE.Vector3(0, 0.2, 6.0).sub(TRUCK_PIV);
 function tick() {
   const t = clock.getElapsedTime();
-  FAIRIES.forEach(f => f.userData.update(t));
+  DAY.update(t); FAIRIES.forEach(f => f.userData.update(t)); SPARK.update(t);
   for (const s of PROP_SWAY) { const w = Math.sin(t * s.sp + s.ph) * 0.7 + Math.sin(t * s.sp * 2.3 + s.ph * 1.3) * 0.3; s.o.rotation.z = s.amp * w; s.o.rotation.x = s.amp * 0.35 * Math.sin(t * s.sp * 0.8 + s.ph); }
   for (let i = 0; i < dustN; i++) {
     dustArr[i * 3] += 0.012 + Math.sin(t * 0.7 + i) * 0.004;
@@ -946,7 +1035,7 @@ function tick() {
   window.__ready = true;
   requestAnimationFrame(tick);
 }
-window.__s = { camera, truckCam, TILT, TILT_PIV, rock, THREE, scene, ROAD_PTS, ROAD2_PTS, rawHeight, truck };
+window.__s = { DAY, clock, camera, truckCam, TILT, TILT_PIV, rock, THREE, scene, ROAD_PTS, ROAD2_PTS, rawHeight, truck };
 tick();
 </script>
 </body>

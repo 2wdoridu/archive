@@ -383,7 +383,7 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
       const pts = [];
       // 머리 곡면 바로 위에서 출발(가르마 쪽은 거의 붙고 옆으로 갈수록 살짝 부풂). 수평까지 돌지 않고 비스듬히 내려오는 방향에서 끊어 그대로 흘러내리게
       const ryz = 0.09 * Math.sqrt(Math.max(0.1, 1 - (zp / 0.085) ** 2));
-      for (let i = 0; i <= 4; i++) { const a = i / 4 * Math.PI * 0.42, lift = 0.005 + 0.006 * Math.sin(a) + 0.003 * Math.sin(k * 1.7) * Math.sin(a); pts.push(V(s * (0.002 + Math.sin(a) * (skullW + lift)), 0.012 + Math.cos(a) * (ryz + lift), zp * (1 - 0.15 * Math.sin(a)))); }
+      for (let i = 0; i <= 4; i++) { const a = i / 4 * Math.PI * 0.42, lift = 0.003 + 0.004 * Math.sin(a) + 0.002 * Math.sin(k * 1.7) * Math.sin(a); pts.push(V(s * (0.002 + Math.sin(a) * (skullW + lift)), 0.012 + Math.cos(a) * (ryz + lift), zp * (1 - 0.15 * Math.sin(a)))); }
       const len = front ? 0.3 + (k % 2) * 0.05 : 0.34 + (k % 3) * 0.035, n = 14;
       const sx = pts[4].x, sz = pts[4].z, sy = pts[4].y;
       for (let i = 1; i <= n; i++) {
@@ -393,7 +393,7 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
         if (front) { z = sz + 0.035 * Math.sin(Math.min(1, t * 2.2) * Math.PI * 0.5) - 0.01 * k * t; x = sx + s * (0.012 + 0.004 * t + 1.1 * amp * wave(d, ph + k)); }   // 사진: 어깨 앞으로 가슴·허리까지 늘어짐   // 어깨 뒤로 넘어감
         pts.push(V(x, y, z));
       }
-      locks.push(add(ribbon(pts, front ? 0.022 : 0.034, 0.012), k % 4 === 1 ? C.hairHi : C.hair, head));
+      locks.push(add(ribbon(pts, front ? 0.022 : 0.034, 0.0065), k % 4 === 1 ? C.hairHi : C.hair, head));   // 얇은 판처럼 겹쳐 두툼한 고리처럼 보이지 않게
     }
     // 뒤통수에서 등으로 흘러내리는 뒷머리(넓게 겹쳐 빈틈을 메움)
     for (let k = 0; k < 21; k++) {
@@ -408,14 +408,14 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
     { const bk = add(new THREE.CylinderGeometry(0.06, 0.15, 0.36, 28, 6, true, Math.PI * 0.72, Math.PI * 0.56), mat("#3b2a25", { side: THREE.DoubleSide }), head); bk.position.set(0, -0.2, -0.075); }
     // 일자 시스루 앞머리: 이마선에서 이마 곡면을 따라 내려와 눈썹 위에서 끝남. 가닥 사이가 살짝 벌어져 이마가 비침
     const brow = (x, y) => 0.072 * Math.sqrt(Math.max(0.02, 1 - (x / 0.071) ** 2 - ((y - 0.012) / 0.09) ** 2));
-    for (let k = 0; k < 13; k++) {
-      const u = (k - 6) / 6, x0 = u * 0.05, end = 0.034 + 0.006 * Math.abs(u) ** 2 - 0.004 * ((k * 7) % 3), pts = [];
+    for (let k = 0; k < 17; k++) {
+      const u = (k - 8) / 8, x0 = u * 0.05, end = 0.034 + 0.006 * Math.abs(u) ** 2 - 0.004 * ((k * 7) % 3), pts = [];
       for (let i = 0; i <= 7; i++) {
         const t = i / 7, x = x0 * (0.55 + 0.45 * t) + 0.004 * Math.sin(k * 2.1) * t, y = 0.1 - (0.1 - end) * t;
-        pts.push(V(x, y, brow(x, y) + 0.008 - 0.004 * t - (i === 0 ? 0.01 : 0)));
+        pts.push(V(x, y, brow(x, y) + 0.005 - 0.003 * t - (i === 0 ? 0.01 : 0)));
       }
       const tip = pts[7]; pts.push(V(tip.x + 0.003 * Math.sin(k), tip.y - 0.006, tip.z - 0.002));
-      add(ribbon(pts, 0.0165 + 0.003 * (k % 2), 0.0042, 26), k % 4 === 2 ? C.hairHi : C.hair, head);
+      add(ribbon(pts, 0.0125 + 0.002 * (k % 2), 0.0024, 26), k % 4 === 2 ? C.hairHi : C.hair, head);   // 가늘고 얇은 가닥 여럿
     }
     // 얼굴 옆을 감싸는 짧은 옆 앞머리(볼 옆으로 흘러 턱선까지)
     for (const s of [-1, 1]) for (let k = 0; k < 2; k++) {
