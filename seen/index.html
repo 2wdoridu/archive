@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 완성 전까지 검색 결과에 안 나오게 막아 둔다. 공개할 때 아래 robots 태그를 지운다 -->
+<meta name="robots" content="noindex">
+<title>관람 기록 — 2w_doridu Archive</title>
+<link rel="icon" href="../icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="stylesheet" href="../style.css?v=20261102-1">
+<style>
+  .seen { padding: 24px var(--side) 80px; }
+  .seen__title { font-family: var(--sans); font-stretch: 62%; font-weight: 800; font-size: 28px; margin-bottom: 16px; }
+  /* 비율이 모두 3:4로 같아서 벽돌형 대신 행을 맞춘 격자로 둔다 */
+  .seen__grid { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
+  .seen__grid .tile img { aspect-ratio: 3 / 4; object-fit: cover; }
+  @media (max-width: 1023px) { .seen__grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 760px) {
+    .seen { padding-top: 12px; }
+    .seen__grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="bar__name" href="../index.html">2w_doridu</a>
+  <nav class="bar__links">
+    <a href="../studio.html" aria-current="page">작업실</a>
+    <a href="../info.html">정보</a>
+  </nav>
+</header>
+
+<main class="seen">
+  <h1 class="seen__title">관람 기록</h1>
+  <ul class="seen__grid" id="grid"></ul>
+</main>
+
+<script src="data.js?v=20261108-1"></script>
+<script>
+document.getElementById("grid").innerHTML = SEEN.map(s => `
+  <li><a class="tile" href="detail.html?id=${s.id}">
+    <img src="${s.img}" alt="${s.title}" loading="lazy">
+    <span class="tile__cap">${s.title}, ${s.date}</span>
+  </a></li>`).join("");
+</script>
+</body>
+</html>

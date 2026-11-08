@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>여자 인물 점검 — 2w_doridu Archive</title>
+<style> html, body { margin: 0; height: 100%; background: #e9e4f0; } canvas { display: block; width: 100%; height: 100%; } </style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<script type="module">
+// 인물 점검용: 장면과 같은 툰 재질·조명으로 여자 인물만 크게 봄. ?view=front|side|low 로 각도 고정, 기본은 마우스로 돌려 봄
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { buildWoman } from "./woman.js?v=24";
+import { buildMan } from "./man.js?v=24";
+const RAMP = (() => { const t = new THREE.DataTexture(new Uint8Array([70, 160, 255]), 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+const KEYS = ["map", "vertexColors", "side", "transparent", "opacity", "emissive", "fog", "alphaTest", "depthWrite", "gradientMap"];
+const mat = (color, o = {}) => { const p = { color, gradientMap: RAMP }; for (const k of KEYS) if (k in o) p[k] = o[k]; return new THREE.MeshToonMaterial(p); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(2); renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color("#e9e4f0");
+const sun = new THREE.DirectionalLight("#fff0d8", 1.9); sun.position.set(-2, 3, 2.5); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -1, right: 1, top: 1, bottom: -1 });
+const bounce = new THREE.DirectionalLight("#9fb0ff", 0.55); bounce.position.set(2, 1, -2);
+scene.add(sun, bounce, new THREE.HemisphereLight("#c3cdff", "#ab8cb8", 0.95));
+const seat = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.05, 0.5), mat("#aac4da")); seat.position.set(0, -0.025, 0.05); seat.receiveShadow = true; scene.add(seat);
+const WHO = new URLSearchParams(location.search).get("who");
+const W = (WHO === "man" ? buildMan : buildWoman)({ THREE, mat, RoundedBoxGeometry }); scene.add(W.group); window.__W = W; if (WHO === "man") seat.visible = false;
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.01, 20);
+const view = new URLSearchParams(location.search).get("view");
+const views = { front: [0, 0.35, 1.9], side: [1.9, 0.35, 0.05], back: [0, 0.35, -1.9], low: [0, -0.1, 1.9], face: [0, 0.52, 0.55], q: [1.2, 0.5, 1.4], bust: [0, 0.4, 0.95], qL: [-1.2, 0.5, 1.4], sideL: [-1.9, 0.35, 0.05], bustQ: [0.6, 0.5, 0.75], bustQL: [-0.6, 0.5, 0.75], top: [0.2, 1.4, 0.6] };
+camera.position.set(...(views[view] || views.front));
+const QP = new URLSearchParams(location.search), qv = k => QP.get(k) && QP.get(k).split(",").map(Number);
+if (qv("cam")) camera.position.set(...qv("cam"));
+const controls = new OrbitControls(camera, renderer.domElement); controls.target.set(0, view === "face" ? 0.5 : (view || "").startsWith("bust") ? 0.42 : 0.22, 0.05); if (qv("tgt")) controls.target.set(...qv("tgt")); controls.update();
+const clock = new THREE.Clock(); window.__cam = camera;
+renderer.setAnimationLoop(() => { W.update(clock.getElapsedTime()); controls.update(); renderer.render(scene, camera); window.__ready = true; });
+</script>
+</body>
+</html>

@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 완성 전까지 검색 결과에 안 나오게 막아 둔다. 공개할 때 아래 robots 태그를 지운다 -->
+<meta name="robots" content="noindex">
+<title>소문의 낙원 — 2w_doridu Archive</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f4f4f1; }
+  body { display: grid; place-items: center; }
+  /* 3:4 화면을 창 안에 꽉 차게 맞춘다 */
+  canvas { display: block; width: min(100vw, 75vh); height: auto; aspect-ratio: 3 / 4; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import * as BufferUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { buildWoman } from "./woman.js?v=78";
+import { buildMan } from "./man.js?v=24";
+
+// 인스타그램 세로 3:4
+const W = 1080, H = 1440;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 400);
+const CAM = new THREE.Vector3(1, 6.5, 44), LOOK = new THREE.Vector3(0, 6.5, -60);
+camera.position.copy(CAM); camera.lookAt(LOOK);
+
+// 같은 결과가 나오도록 정해진 순서의 난수
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+// 하늘·안개: 낮, 연한 푸른빛에 보랏빛이 살짝 도는 지평선
+const HAZE = new THREE.Color("#c8cfe8");
+function gradientTexture(stops) {
+  const c = document.createElement("canvas"); c.width = 4; c.height = 256;
+  const g = c.getContext("2d"), lg = g.createLinearGradient(0, 0, 0, 256);
+  stops.forEach(([o, col]) => lg.addColorStop(o, col));
+  g.fillStyle = lg; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+scene.background = gradientTexture([[0, "#1f5fd0"], [0.45, "#3f7fe0"], [0.8, "#86a8e6"], [1, "#c3c8e2"]]);
+scene.fog = new THREE.Fog(HAZE, 120, 650);
+
+// 애니 셀 재질(sakura-crossing 방식): 햇빛을 3단계 평평한 띠로 끊는 램프. 툰 재질에 없는 옵션(거칠기·금속성 등)은 버림
+const RAMP = (() => { const t = new THREE.DataTexture(new Uint8Array([70, 160, 255]), 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+const TOON_KEYS = ["gradientMap", "map", "vertexColors", "side", "transparent", "opacity", "emissive", "emissiveIntensity", "fog", "alphaTest", "polygonOffset", "polygonOffsetFactor", "depthWrite"];
+const mat = (color, o = {}) => { const p = { color, gradientMap: RAMP }; for (const k of TOON_KEYS) if (k in o) p[k] = o[k]; return new THREE.MeshToonMaterial(p); };
+
+// 값 노이즈: 언덕과 산의 높이
+const hash = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
+function vnoise(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z), xf = x - xi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
+  const a = hash(xi, zi), b = hash(xi + 1, zi), c = hash(xi, zi + 1), d = hash(xi + 1, zi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const fbm = (x, z) => vnoise(x, z) * 0.55 + vnoise(x * 2.1, z * 2.1) * 0.3 + vnoise(x * 4.3, z * 4.3) * 0.15;
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// 산 모양(길을 내기 전)
+// 깊이별 언덕 줄: 가까운 중경 → 중경 → 먼 중경. 줄마다 능선이 따로 보여 겹겹이 물러나는 느낌을 줌
+// tilt: 왼쪽에서 오른쪽으로 갈수록 능선이 앞뒤로 비스듬히 놓이는 정도, lean: 한쪽이 더 높아지는 정도
+const RIDGES = [
+  { z: -14, h: 3.5, back: 8, front: 6, tilt: -0.18, lean: 0.5, seed: 1 },   // 가까운 중경: 오른쪽이 앞으로 나오고 높음
+  { z: -38, h: 6, back: 9, front: 7, tilt: 0.25, lean: -0.45, seed: 2 },    // 중경: 왼쪽이 높고 오른쪽으로 물러남
+  { z: -62, h: 8, back: 10, front: 8, tilt: -0.12, lean: 0.35, seed: 3 },   // 중경 뒤
+  { z: -86, h: 12, back: 12, front: 9, tilt: 0.2, lean: -0.3, seed: 4 },    // 먼 중경
+];
+function ridges(x, z) {
+  let h = 0;
+  for (const r of RIDGES) {
+    // 능선 위치가 좌우로 비스듬하고 구불구불함
+    const cz = r.z + r.tilt * x + Math.sin(x * 0.06 + r.seed * 2.3) * 4 + (fbm(x * 0.03, r.seed * 5) - 0.5) * 8;
+    const dz = z - cz, w = (dz > 0 ? r.front : r.back) * (0.8 + 0.5 * fbm(x * 0.05 + r.seed, 1));
+    // 높이는 한쪽으로 기울고 봉우리마다 다름
+    const crest = r.h * Math.max(0.25, 1 + r.lean * x / 40) * (0.45 + 0.75 * fbm(x * 0.05 + r.seed * 7, r.seed * 3));
+    h = Math.max(h, crest * Math.exp(-(dz * dz) / (w * w)));
+  }
+  return h;
+}
+// 먼 산 능선: 공연 사진에서 세로줄마다 파란 하늘이 끝나는 높이를 찾아 뽑은 실제 능선(화면 좌표 -1~1).
+// 왼쪽 끝에서 완만히 올라 왼쪽 1/3에서 둥글고 넓은 꼭대기, 오른쪽으로 길게 내려가 골짜기, 오른쪽 끝 가까이 낮은 둥근 산
+const SKYLINE = [[-1.2, 0.38], [-1.000, 0.387], [-0.970, 0.392], [-0.941, 0.396], [-0.911, 0.396], [-0.882, 0.399], [-0.852, 0.402], [-0.823, 0.405], [-0.793, 0.423], [-0.764, 0.438], [-0.734, 0.449], [-0.704, 0.457], [-0.675, 0.462], [-0.645, 0.470], [-0.616, 0.481], [-0.586, 0.483], [-0.557, 0.487], [-0.527, 0.488], [-0.498, 0.491], [-0.468, 0.500], [-0.438, 0.500], [-0.409, 0.500], [-0.379, 0.500], [-0.350, 0.500], [-0.320, 0.500], [-0.291, 0.500], [-0.261, 0.500], [-0.232, 0.497], [-0.202, 0.489], [-0.172, 0.481], [-0.143, 0.471], [-0.113, 0.465], [-0.084, 0.455], [-0.054, 0.444], [-0.025, 0.439], [0.005, 0.431], [0.034, 0.425], [0.064, 0.419], [0.094, 0.415], [0.123, 0.413], [0.153, 0.411], [0.182, 0.411], [0.212, 0.408], [0.241, 0.397], [0.271, 0.386], [0.300, 0.371], [0.330, 0.362], [0.360, 0.353], [0.389, 0.347], [0.419, 0.346], [0.448, 0.347], [0.478, 0.347], [0.507, 0.347], [0.537, 0.352], [0.567, 0.354], [0.596, 0.355], [0.626, 0.349], [0.655, 0.348], [0.685, 0.355], [0.714, 0.371], [0.744, 0.377], [0.773, 0.381], [0.803, 0.383], [0.833, 0.383], [0.862, 0.378], [0.892, 0.374], [0.921, 0.365], [0.951, 0.344], [0.980, 0.326], [0.995, 0.321], [1.2, 0.36]];
+// 카메라가 수평으로 산을 보므로, 거리 d 의 높이 h 는 화면 높이 (h - 눈높이) / (d × tan20°) 에 그려진다.
+// 능선(z = -175)에서 화면 높이가 빨간 선과 같고, 앞뒤로는 그보다 낮아지게 높이를 정해 윤곽이 선 그대로 보이게 함
+const RIDGE_Z = -175, TAN_V = Math.tan(THREE.MathUtils.degToRad(20)), TAN_H = TAN_V * W / H;
+// 사진에서 읽은 윤곽선(사진 1374×1692 좌표)을 화면 좌표로 바꿔 두고, 가로 위치에 따라 높이를 꺼냄
+const toScreen = pts => pts.map(([x, y]) => [x / 1374 * 2 - 1, 1 - y / 1692 * 2]);
+function lineAt(line, sx) {
+  if (sx <= line[0][0]) return line[0][1];
+  for (let i = 1; i < line.length; i++) if (sx <= line[i][0]) {
+    const [x0, y0] = line[i - 1], [x1, y1] = line[i], t = (sx - x0) / (x1 - x0);
+    return y0 + (y1 - y0) * t;
+  }
+  return line[line.length - 1][1];
+}
+// 사진의 지형 층: 각 층의 꼭대기 윤곽을 카메라에서 본 화면 높이로 정하고, 그 층의 능선 깊이(z)와 앞뒤 비탈 폭을 줌.
+// 앞 비탈은 아래 층 쪽으로 흘러내리고, 윤곽선보다 높이 솟는 곳이 없어 사진과 같은 겹침이 생김
+const LAYERS = [
+  // 먼 산(사진에서 뽑은 능선)
+  { line: SKYLINE, z: -175, front: 70, back: 22 },
+  // 산 아래 둔덕 줄: 왼쪽 둔덕이 둥글게 솟고 가운데서 꺼졌다가 오른쪽 산 밑으로 이어짐
+  { line: toScreen([[-60, 615], [0, 610], [150, 588], [300, 568], [420, 563], [520, 585], [650, 628], [760, 640], [880, 602], [1000, 612], [1150, 650], [1374, 662], [1440, 668]]), z: -122, front: 34, back: 14 },
+  // 가운데 언덕 덩어리: 왼쪽이 크고 높으며 능선이 오른쪽 아래로 비스듬히 내려감
+  { line: toScreen([[-60, 702], [0, 700], [150, 690], [300, 665], [420, 650], [560, 690], [700, 740], [850, 770], [1000, 790], [1150, 780], [1300, 762], [1440, 760]]), z: -72, front: 30, back: 13 },
+  // 아래 평평한 단: 가운데가 가장 낮고, 오른쪽은 바위 뒤로 올라감
+  { line: toScreen([[-60, 878], [0, 880], [200, 900], [400, 930], [600, 958], [800, 968], [950, 958], [1100, 930], [1250, 900], [1374, 880], [1440, 872]]), z: -28, front: 24, back: 12 },
+];
+function layerHeight(L, x, z) {
+  const d = CAM.z - z, sx = (x - CAM.x) / (d * TAN_H);
+  const dz = z - L.z, w = dz > 0 ? L.front : L.back;
+  // 비탈에 주름을 주되 윤곽선을 넘지 않게 1 이하로만 흔듦
+  const t = Math.min(1, Math.abs(dz) / w);
+  const fall = dz > 0 ? Math.pow(1 - t, 2.2) : 1 - t * t; // 앞: 능선 밑이 급하고 아래로 완만, 뒤: 둥글게
+  // 비탈 주름: 윤곽선은 넘지 않게 1 이하로만 깎음
+  const shape = fall * (1 - 0.32 * Math.pow(fbm(x * 0.09, z * 0.14), 1.5));
+  return CAM.y + lineAt(L.line, sx) * d * TAN_V * shape - CAM.y * (1 - shape);
+}
+function rawHeight(x, z) {
+  let h = fbm(x * 0.06, z * 0.06) * 1.2;
+  for (const L of LAYERS) h = Math.max(h, layerHeight(L, x, z));
+  return h;
+}
+
+// 길: 공연 첫 장면처럼 산등성이 너머에서 넘어와 비탈을 굽이굽이 내려와 앞쪽 언덕으로 다가오는 찻길
+const PH_W = 1374, PH_H = 1692;
+// 화면 좌표(사진 1374×1692) → 지형 위 점: 카메라에서 광선을 쏘아 길 내기 전 지형과 처음 만나는 곳
+function screenToGround(px, py) {
+  camera.updateMatrixWorld();
+  const rc = new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2(px / PH_W * 2 - 1, 1 - py / PH_H * 2), camera);
+  const o = rc.ray.origin, d = rc.ray.direction, at = t => o.clone().addScaledVector(d, t);
+  let a = 0, b = 0;
+  for (let t = 1; t < 700; t += 0.5) { const q = at(t); if (q.y <= rawHeight(q.x, q.z)) { b = t; break; } a = t; }
+  for (let i = 0; i < 20; i++) { const m = (a + b) / 2, q = at(m); if (q.y <= rawHeight(q.x, q.z)) b = m; else a = m; }
+  const q = at(b); return [q.x, 0, q.z];
+}
+// 길: 먼 언덕 뒤에서 나타나 좌우로 굽이치며 앞으로만 다가옴(뒤로 돌아가지 않음)
+// 길(사용자가 공연 사진에 그린 화살표 순서, 사진 1374×1692 좌표):
+// 큰 산 왼쪽 어깨에서 왼쪽으로 가다 머리핀으로 꺾여 오른쪽 → 큰 산 아래를 가로질러 오른쪽 산 비탈로 내려감 →
+// 오른쪽 끝에서 되돌아 한 단 아래 언덕을 왼쪽으로 → 왼쪽 비탈에서 크게 U자 → 큰 바위 왼쪽으로 다가와 바위 뒤를 지나 오른쪽 위로 빠짐
+const ROAD_TRACE = [
+  [320, 515], [200, 525], [80, 557], [60, 580], [110, 597], [275, 629], [440, 637], [605, 640], [750, 642], [900, 625], [1100, 629], [1305, 695], [1400, 740],
+  [1295, 795], [1080, 810], [880, 825], [1000, 857], [780, 882], [520, 885], [300, 887], [262, 947], [320, 1027], [440, 1087], [700, 1112], [900, 1087],
+  [1145, 1027], [1325, 937], [1420, 905],
+];
+const ROAD = new THREE.CatmullRomCurve3(ROAD_TRACE.map(([x, y]) => new THREE.Vector3(...screenToGround(x, y))));
+const ROAD_PTS = ROAD.getSpacedPoints(1600);
+// 둘째 길(사용자가 그린 넓은 흙길): 가운데 언덕에서 내려와 왼쪽으로 크게 휘어 돌고, 오른쪽 아래 큰 바위 쪽으로 다가옴
+const ROAD2 = new THREE.CatmullRomCurve3([[462, 834], [361, 876], [304, 953], [314, 1029], [399, 1086], [551, 1134], [627, 1147], [700, 1160]]
+  .map(([x, y]) => new THREE.Vector3(...screenToGround(x, y))));
+const ROAD2_PTS = ROAD2.getSpacedPoints(400);
+const ROAD_W = 1.3;
+// 길 높이: 그 자리 지형 높이 그대로(언덕을 깎아 평지를 만들지 않음)
+for (const p of ROAD_PTS.concat(ROAD2_PTS)) p.y = rawHeight(p.x, p.z);
+function roadNear(x, z) {
+  let best = 1e9, y = 0;
+  for (const p of ROAD_PTS) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < best) { best = d; y = p.y; } }
+  let w = ROAD_W;
+  for (const p of ROAD2_PTS) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < best) { best = d; y = p.y; w = 4; } }
+  return { d: Math.sqrt(best), y, w };
+}
+const roadDist = (x, z) => roadNear(x, z).d;
+function height(x, z) {
+  const h = rawHeight(x, z), r = roadNear(x, z);
+  // 길 폭만큼만 옆 경사를 살짝 눌러 길이 비탈에 붙어 보이게 함
+  const k = smooth(r.w * 0.55, r.w * 1.4, r.d);
+  return r.y * (1 - k) + h * k;
+}
+
+// 지형: 각진 면마다 색을 칠함(붉은 모래·바위, 푸른빛 덤불 무리)
+const SAND = new THREE.Color("#cfa293"), RED = new THREE.Color("#b07e84"), DARK = new THREE.Color("#6e5a70"),
+  PEAK = new THREE.Color("#dfe0ee"), SAGE = new THREE.Color("#5c8f8e");
+{
+  const geo = new THREE.PlaneGeometry(190, 260, 110, 150);
+  geo.rotateX(-Math.PI / 2); geo.translate(0, 0, -85);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i) + (hash(p.getX(i), p.getZ(i)) - 0.5) * 1.2, z = p.getZ(i) + (hash(p.getZ(i), p.getX(i)) - 0.5) * 1.2;
+    p.setXYZ(i, x, height(x, z), z);
+  }
+  geo.computeVertexNormals();
+  const col = new Float32Array(p.count * 3), c = new THREE.Color(), n = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    const cx = p.getX(i), cy = p.getY(i), cz = p.getZ(i);
+    n.fromBufferAttribute(geo.attributes.normal, i);
+    const steep = 1 - n.y;
+    // 경사에 따라 흙 → 붉은 비탈 → 짙은 비탈로 부드럽게, 높은 곳은 희끗하게, 낮은 곳 군데군데 회녹색 덤불 자리
+    c.copy(SAND).lerp(RED, smooth(0.08, 0.3, steep)).lerp(DARK, smooth(0.35, 0.6, steep) * 0.7);
+    c.lerp(PEAK, smooth(20, 45, cy) * 0.55);
+    if (cy < 18) c.lerp(SAGE, smooth(0.62, 0.72, fbm(cx * 0.05, cz * 0.18)) * 0.5);
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const ground = new THREE.Mesh(geo, mat("#ffffff", { vertexColors: true }));
+  ground.receiveShadow = true; ground.castShadow = true;
+  scene.add(ground);
+}
+
+// 길 띠: 깎인 비탈(어두운 넓은 띠) 위에 밝은 흙길
+function roadRibbon(curve, pts, width, lift, color, hideDepth = true) {
+  const N = pts.length - 1, pos = [], idx = [];
+  const side = new THREE.Vector3();
+  for (let i = 0; i <= N; i++) {
+    const u = i / N, p = pts[i], tg = curve.getTangentAt(u);
+    side.set(-tg.z, 0, tg.x).normalize();
+    // 카메라 쪽으로 곧장 뻗는 구간은 언덕 뒤를 잇는 숨은 길이라 그리지 않음(그리면 세로 기둥처럼 보임)
+    const w = width * smooth(0, 0.02, u) * (hideDepth ? 1 - smooth(0.7, 0.85, Math.abs(tg.z)) : 1);
+    for (const k of [-1, 1]) pos.push(p.x + side.x * w * 0.5 * k, p.y + lift, p.z + side.z * w * 0.5 * k);
+    if (i < N) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, mat(color, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2 }));
+  m.receiveShadow = true; scene.add(m);
+}
+roadRibbon(ROAD, ROAD_PTS, ROAD_W, 0.3, "#eadbd4");
+// 둘째 길은 화면에서 직접 그린 길이라 카메라 쪽으로 뻗는 구간도 그림
+roadRibbon(ROAD2, ROAD2_PTS, 4, 0.3, "#e6d3c8", false);
+
+// 덤불: 공연 화면처럼 언덕 곳곳에 무리 지어 자란 푸른 회녹색 덤불
+{
+  const spots = [];
+  for (let c = 0; c < 30; c++) {
+    const cx = (rnd() - 0.5) * 110, cz = 30 - rnd() * 120;
+    const n = 6 + Math.floor(rnd() * 16), spread = 1.5 + rnd() * 3.5;
+    for (let i = 0; i < n; i++) {
+      const x = cx + (rnd() - 0.5) * spread * 2, z = cz + (rnd() - 0.5) * spread * 2;
+      if (roadDist(x, z) < ROAD_W * 1.4) continue;
+      // 작은 덩이 두세 개가 모여 한 덤불이 됨
+      const r = 0.18 + rnd() * 0.3;
+      for (let k = 0; k < 3; k++) spots.push([x + (rnd() - 0.5) * r * 1.6, z + (rnd() - 0.5) * r * 1.6, r * (0.6 + rnd() * 0.5)]);
+    }
+  }
+  const im = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 7), mat("#ffffff"), spots.length);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3();
+  const tones = ["#6f8a8c", "#7f9a9a", "#8a9c88", "#647e88", "#8fa0a6", "#9aa28a"].map(c => new THREE.Color(c));
+  spots.forEach(([x, z, r], i) => {
+    q.setFromEuler(new THREE.Euler(rnd() * 0.5, rnd() * 6, rnd() * 0.5));
+    m.compose(v.set(x, height(x, z) + r * 0.25, z), q, s.set(r * 1.3, r * 0.8, r * 1.2));
+    im.setMatrixAt(i, m); im.setColorAt(i, tones[Math.floor(rnd() * tones.length)]);
+  });
+  im.castShadow = true; im.receiveShadow = true;
+  scene.add(im);
+}
+
+// 풀: 가는 잎 몇 장을 묶은 포기. 바람에 끝이 살랑살랑 흔들림(뿌리는 고정)
+const wind = { value: 0 };
+let TUFT, GRASS_MAT;
+{
+  // 가는 잎 여섯 장을 고른 간격으로 둘러 세우고 바깥으로 살짝 눕힌 포기(긴 잎과 짧은 잎이 번갈아)
+  const blades = [];
+  for (let k = 0; k < 6; k++) {
+    const h = k % 2 ? 0.5 : 0.75, w = 0.05;
+    const b = new THREE.BufferGeometry();
+    b.setAttribute("position", new THREE.Float32BufferAttribute([-w, 0, 0, w, 0, 0, 0, h, 0], 3));
+    b.rotateX(0.38); b.rotateY(k * Math.PI / 3);
+    blades.push(b);
+  }
+  const center = new THREE.BufferGeometry();
+  center.setAttribute("position", new THREE.Float32BufferAttribute([-0.05, 0, 0, 0.05, 0, 0, 0, 0.9, 0], 3));
+  blades.push(center, center.clone().rotateY(Math.PI / 2));
+  TUFT = BufferUtils.mergeGeometries(blades);
+  // 잎에 위쪽 법선을 넣어 고르게 빛을 받게 함(법선이 없으면 빛을 못 받아 검게 보임)
+  { const n = new Float32Array(TUFT.attributes.position.count * 3); for (let i = 0; i < n.length; i += 3) n[i + 1] = 1; TUFT.setAttribute("normal", new THREE.BufferAttribute(n, 3)); }
+  const gm = GRASS_MAT = mat("#ffffff", { roughness: 1, side: THREE.DoubleSide });
+  gm.onBeforeCompile = sh => {
+    sh.uniforms.uWind = wind;
+    sh.vertexShader = "uniform float uWind;\n" + sh.vertexShader.replace("#include <project_vertex>", `
+      vec4 mvPosition = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        mvPosition = instanceMatrix * mvPosition;
+        vec3 ip = instanceMatrix[3].xyz;
+      #else
+        vec3 ip = vec3(0.);
+      #endif
+      // 바람 물결이 오른쪽으로 지나가며 포기마다 조금씩 다른 박자로 흔들림
+      float sway = sin(uWind * 1.7 - ip.x * 0.45 + ip.z * 0.2) * 0.6 + sin(uWind * 3.1 + ip.x * 1.3 + ip.z * 0.9) * 0.25;
+      float bend = transformed.y * transformed.y;
+      mvPosition.x += sway * bend * 0.28;
+      mvPosition.z += sway * bend * 0.08;
+      mvPosition.y -= abs(sway) * bend * 0.05;
+      mvPosition = modelViewMatrix * mvPosition;
+      gl_Position = projectionMatrix * mvPosition;`);
+  };
+  const ground = [];
+  // 듬성듬성 작은 무리로
+  for (let c = 0; c < 60; c++) {
+    const cz = 38 - Math.pow(rnd(), 1.4) * 70, cx = (rnd() - 0.5) * (36 + (40 - cz) * 0.5);
+    const n = 3 + Math.floor(rnd() * 6);
+    for (let i = 0; i < n; i++) {
+      const x = cx + (rnd() - 0.5) * 2.4, z = cz + (rnd() - 0.5) * 2.4;
+      if (roadDist(x, z) > ROAD_W) ground.push(new THREE.Vector3(x, height(x, z) - 0.03, z));
+    }
+  }
+  plantGrass(ground);
+}
+// 풀 포기를 주어진 자리마다 심음
+function plantGrass(points, size = 1) {
+  const im = new THREE.InstancedMesh(TUFT, GRASS_MAT, points.length);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+  const tones = ["#9fae6c", "#8aa36a", "#b4b277"].map(c => new THREE.Color(c));
+  points.forEach((v, i) => {
+    const k = (0.8 + rnd() * 0.5) * size;
+    q.setFromEuler(new THREE.Euler(0, rnd() * 6.28, 0));
+    m.compose(v, q, sc.set(k, k, k));
+    im.setMatrixAt(i, m); im.setColorAt(i, tones[Math.floor(rnd() * tones.length)]);
+  });
+  im.receiveShadow = true;
+  scene.add(im);
+}
+
+// 꼭짓점을 흔들어 바위를 각지게 만든다
+// 큰 면은 작은 삼각형으로 쪼갠 뒤 흔들어 깎은 돌처럼 만든다
+function jitter(geo, amt, edge = 0) {
+  geo.deleteAttribute("normal"); geo.deleteAttribute("uv");
+  if (edge) geo = new TessellateModifier(edge, 8).modify(geo.index ? geo.toNonIndexed() : geo);
+  geo = BufferUtils.mergeVertices(geo);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + (rnd() - 0.5) * amt, p.getY(i) + (rnd() - 0.5) * amt, p.getZ(i) + (rnd() - 0.5) * amt);
+  geo.computeVertexNormals(); return geo;
+}
+
+// 앞쪽 큰 바위(공연 화면 사진 기준): 앞면이 판판하고 세로로 갈라진 넓은 바위. 왼쪽은 낮고 오른쪽으로 갈수록 높아지며
+// 꼭대기는 몇 군데 패여 있음. 윤곽은 사용자가 공연 사진에 빨간 선으로 그린 것(사진 1374×1692 좌표)을 정해진 깊이의 면에 투영한다
+// 1번 큰 바위(사진의 실제 가장자리): 화면 왼쪽 끝에서 낮고 길게 시작해 완만히 오르다, 가운데부터 가파르게 올라
+// 오른쪽 3/4 지점에서 가장 높음. 그 뒤 한 번 꺼졌다가 오른쪽 끝 가까이 둘째 봉우리가 솟고 떨어짐
+const SLAB = [[-40, 1440], [0, 1430], [260, 1370], [330, 1362], [400, 1335], [490, 1338], [600, 1232], [640, 1230], [710, 1170], [800, 1105], [880, 1078], [940, 1040],
+  [1000, 1012], [1045, 1010], [1060, 1028], [1130, 1045], [1210, 1088], [1268, 1045], [1300, 1040], [1330, 1062], [1374, 1110], [1420, 1130], [1420, 1692], [-40, 1692]];
+// 2번 바위: 왼쪽에서 오른쪽 아래로 비스듬히 내려오는 층층 판. 끝이 1번 바위와 떨어져 사이로 땅이 보임
+const LEDGE = [[-40, 1100], [0, 1100], [80, 1130], [180, 1180], [280, 1228], [360, 1262], [400, 1290], [372, 1330], [260, 1370], [120, 1420], [0, 1460], [-40, 1460]];
+// 2번 바위 위에 얹힌 짙은 바위 무리
+const LEDGE_TOP = [[-40, 1160], [0, 1062], [100, 1040], [200, 1048], [300, 1065], [332, 1100], [300, 1130], [200, 1150], [80, 1152], [-40, 1165]];
+const ROCK_TONES = ["#8c7270", "#a88d86", "#74605e", "#b39890", "#7f6664"].map(c => new THREE.Color(c));
+const CRACK = new THREE.Color("#45363a"), SUNLIT = new THREE.Color("#e2c1ae"), LICHEN = new THREE.Color("#8e9c84");
+const rockTops = [];
+function photoRock(outline, planeZ, depth, layered = false, tones = ROCK_TONES) {
+  camera.updateMatrixWorld();
+  const rc = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -planeZ), hit = new THREE.Vector3();
+  const pts = outline.map(([px, py]) => {
+    rc.setFromCamera(new THREE.Vector2(px / PH_W * 2 - 1, 1 - py / PH_H * 2), camera);
+    rc.ray.intersectPlane(plane, hit);
+    // 화면 맨 아래 점은 땅속까지 내림
+    return new THREE.Vector2(hit.x, py >= PH_H ? -4 : hit.y);
+  });
+  for (let i = 1; i < pts.length - 1; i++) if (outline[i][1] < PH_H && outline[i + 1][1] < PH_H) rockTops.push([pts[i], pts[i + 1], planeZ, depth]);
+  // 모서리를 둥글게 깎아 덩어리감을 줌
+  let geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth, bevelEnabled: true, bevelThickness: 0.5, bevelSize: 0.25, bevelSegments: 2, steps: 3, curveSegments: 1 }).translate(0, 0, planeZ - depth);
+  // 뒤쪽 꼭짓점을 카메라 시선 방향으로 밀어, 카메라에서 볼 때 앞면과 뒷면 윤곽이 겹치게 함(윤곽이 그림과 똑같이 보임)
+  {
+    const cam = camera.position, gp = geo.attributes.position, v = new THREE.Vector3();
+    for (let i = 0; i < gp.count; i++) {
+      v.set(gp.getX(i), gp.getY(i), planeZ);
+      const t = (cam.z - gp.getZ(i)) / (cam.z - planeZ);
+      v.sub(cam).multiplyScalar(t).add(cam);
+      gp.setXYZ(i, v.x, v.y, v.z);
+    }
+  }
+  // 큰 삼각형으로 나눈 뒤, 꼭짓점을 카메라 시선 방향으로만 앞뒤로 밀어 굴곡을 만듦(화면 윤곽은 변하지 않음).
+  // 세로로 긴 결이 생기도록 가로로 촘촘하고 세로로 느린 무늬를 씀
+  geo.deleteAttribute("normal"); geo.deleteAttribute("uv");
+  geo = BufferUtils.mergeVertices(new TessellateModifier(layered ? 1.1 : 0.6, 10).modify(geo.index ? geo.toNonIndexed() : geo));
+  {
+    const cam = camera.position, gp = geo.attributes.position, v = new THREE.Vector3(), dir = new THREE.Vector3();
+    for (let i = 0; i < gp.count; i++) {
+      v.fromBufferAttribute(gp, i);
+      const bump = (layered ? fbm(v.x * 0.15, v.y * 1.4) : fbm(v.x * 1.1, v.y * 0.18)) - 0.5, fine = layered ? 0 : (fbm(v.x * 3.2, v.y * 2.6) - 0.5) * 0.35;
+      dir.copy(v).sub(cam).normalize();
+      v.addScaledVector(dir, bump * 1.6 + fine);
+      gp.setXYZ(i, v.x, v.y, v.z);
+    }
+  }
+  geo.computeVertexNormals();
+  const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    // 바위마다 기본 한 색. layered 바위만 층마다 아주 조금 밝기가 달라짐
+    c.copy(tones[0]);
+    if (layered) c.lerp(tones[3], (Math.floor(y / 0.35) % 2) * 0.35);
+    else {
+      // 앞 바위: 비스듬한 결무늬 띠, 위를 향한 면은 햇빛에 바랜 밝은 모래색, 갈라진 금은 짙게, 군데군데 이끼(회녹색)
+      const x = p.getX(i), ny = geo.attributes.normal.getY(i), s = fbm(x * 0.07 + y * 0.03, y * 0.75);
+      c.lerp(tones[Math.min(tones.length - 1, 2)], Math.max(0, s - 0.45) * 0.9);
+      c.lerp(SUNLIT, Math.max(0, ny) * 0.32);
+      if (Math.abs(fbm(x * 0.55 + 3, y * 0.22) - 0.5) < 0.022) c.lerp(CRACK, 0.55);
+      const li = fbm(x * 0.8 + 11, y * 0.8 + 4); if (li > 0.66 && ny > 0.1) c.lerp(LICHEN, Math.min(0.55, (li - 0.66) * 4));
+    }
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const mesh = new THREE.Mesh(geo, mat("#ffffff", { vertexColors: true }));
+  mesh.castShadow = mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+// 2번 바위는 1번보다 뒤에 두고 색도 더 밝은 회분홍으로 해 따로 떨어진 바위로 읽히게 함
+photoRock(LEDGE, 22, 3, true, ["#b8a2a0", "#c7b2ad", "#a99391", "#d1beb8", "#b29b98"].map(c => new THREE.Color(c)));
+photoRock(LEDGE_TOP, 18, 3, false, ["#5f4e56", "#6c5a60", "#54454d"].map(c => new THREE.Color(c)));
+const rock = photoRock(SLAB, 36, 3);
+// 요정: 바위 능선 위를 줄지어 지나감(지금은 멈춘 채 나는 모습). 은은하게 빛나는 물방울 몸, 끝이 뒤로 휜 뾰족한 고깔모자,
+// 몸 뒤로 가늘어지는 빛 꼬리, 작은 반투명 날개, 둘레의 은은한 빛무리. 디테일 없이 단순한 형태
+const FAIRIES = [];
+// 부드러운 빛 무늬(가운데 밝고 바깥으로 사라짐)
+const GLOW_TEX = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"), g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.25, "rgba(255,255,255,0.55)"); g.addColorStop(0.6, "rgba(255,255,255,0.12)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); return t; })();
+function makeFairy(phase) {
+  // 끝이 꺾인 흰 고깔을 쓴 하늘색 빛무리: 작은 빛 알갱이 여러 개가 모여 일렁이고, 능선 위를 이리저리 떠다니며 지나간 자리에 빛 알갱이 자취를 남김
+  const f = new THREE.Group(), GLOW = new THREE.Color("#7cc8ff");
+  const sp = (parent, scale, op) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW_TEX, color: GLOW, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending })); s.scale.setScalar(scale); parent.add(s); return s; };
+  const outer = sp(f, 2.6, 0.35), core = sp(f, 0.55, 0.7);
+  const motes = []; for (let i = 0; i < 9; i++) motes.push({ s: sp(f, 0.16 + (i % 3) * 0.05, 0.8), a: i * 2.4 + phase, r: 0.06 + (i % 4) * 0.035, h: (i % 5 - 2) * 0.035 });
+  // 고깔: 위로 오르다 끝이 한쪽으로 꺾여 축 처짐
+  { const pts = []; for (let i = 0; i <= 14; i++) { const t = i / 14; pts.push(new THREE.Vector3(0.07 * Math.pow(Math.max(0, t - 0.55) / 0.45, 1.6) * 1.6, 0.1 + t * 0.32 - 0.1 * Math.pow(Math.max(0, t - 0.7) / 0.3, 2), -0.03 * t)); }
+    const curve = new THREE.CatmullRomCurve3(pts), geo = new THREE.TubeGeometry(curve, 28, 1, 16, false), pp = geo.attributes.position;
+    for (let i = 0; i <= 28; i++) { const t = i / 28, c = curve.getPointAt(t), r = 0.11 * (1 - t) + 0.006; for (let j = 0; j <= 16; j++) { const k = i * 17 + j, v = new THREE.Vector3(pp.getX(k), pp.getY(k), pp.getZ(k)).sub(c).normalize().multiplyScalar(r).add(c); pp.setXYZ(k, v.x, v.y, v.z); } }
+    geo.computeVertexNormals();
+    const hatM = mat("#ffffff", { emissive: new THREE.Color("#6e7e8c"), emissiveIntensity: 0.6 });
+    f.userData.hat = new THREE.Group(); f.add(f.userData.hat); f.userData.hat.add(new THREE.Mesh(geo, hatM));
+    const brim = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.02, 8, 24), hatM); brim.rotation.x = Math.PI / 2; brim.position.y = 0.1; f.userData.hat.add(brim);
+    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), hatM); pom.position.copy(pts[14]); f.userData.hat.add(pom); }
+  // 자취: 장면에 따로 두고, 지나온 자리를 따라 점점 작고 흐리게
+  const trailG = new THREE.Group(); scene.add(trailG); const trail = []; for (let i = 0; i < 10; i++) trail.push(sp(trailG, 0.14 * (1 - i * 0.07), 0.6));
+  const hist = [];
+  const prev = new THREE.Vector3();
+  f.userData.update = t => {
+    const path = f.userData.path; if (!path) return;
+    // 무리가 함께 능선을 따라 오른쪽→왼쪽으로(마리마다 무리 안 자리만 조금 다름). 끝에서 서서히 사라졌다 처음에서 다시 나타남
+    const u = ((t * 0.035 + f.userData.lead) % 1 + 1) % 1, pos = path.getPointAt(u), fade = Math.min(1, u / 0.08, (1 - u) / 0.08);
+    f.position.set(pos.x, pos.y + f.userData.lift + 0.12 * Math.sin(t * 1.4 + phase), pos.z + f.userData.side + 0.06 * Math.sin(t * 0.9 + phase));
+    f.visible = fade > 0.02; f.userData.fade = fade;
+    const vx = f.position.x - prev.x, vy = f.position.y - prev.y; prev.copy(f.position);
+    f.userData.hat.rotation.z = THREE.MathUtils.clamp(vx * 18, -0.5, 0.5); f.userData.hat.rotation.x = THREE.MathUtils.clamp(-vy * 12, -0.3, 0.3);   // 가는 방향 반대로 모자가 살짝 기욺
+    // 반딧불이처럼 천천히 밝아졌다 어두워짐
+    const k = Math.pow(0.5 + 0.5 * Math.sin(t * 0.8 + phase * 1.7), 2.2);
+    const fd = f.userData.fade ?? 1; core.material.opacity = (0.35 + 0.55 * k) * fd; outer.material.opacity = (0.1 + 0.4 * k) * fd; outer.scale.setScalar(2.0 + 1.3 * k);
+    motes.forEach((m, i) => { const a = m.a + t * (0.9 + i * 0.07); m.s.position.set(Math.cos(a) * m.r, m.h + 0.03 * Math.sin(t * 1.6 + i), Math.sin(a) * m.r); m.s.material.opacity = (0.4 + 0.5 * k) * (0.6 + 0.4 * Math.sin(t * 2.3 + i * 1.3)) * fd; });
+    if (hist.length && hist[0].distanceTo(f.position) > 1) hist.length = 0;   // 처음으로 돌아가면 자취를 지움
+    hist.unshift(f.position.clone()); if (hist.length > 40) hist.pop();
+    trail.forEach((sp2, i) => { const h = hist[Math.min(hist.length - 1, (i + 1) * 4)]; sp2.position.copy(h).add(new THREE.Vector3(0, -0.02 * i, 0)); sp2.material.opacity = (0.15 + 0.45 * k) * (1 - i * 0.09) * fd; sp2.scale.setScalar(0.5 * f.scale.x * (1 - i * 0.07)); });
+  };
+  FAIRIES.push(f);
+  return f;
+}
+// 바위 위 풀포기: 꼭대기 선을 따라 아주 듬성듬성
+{
+  const pts = [];
+  for (const [a, b, z, d] of rockTops) {
+    const n = Math.round(a.distanceTo(b) / 1.6);
+    for (let i = 0; i < n; i++) {
+      if (rnd() < 0.35) continue;
+      const t = rnd(), x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+      pts.push(new THREE.Vector3(x, y - 0.1, z - 0.6 - rnd() * (d - 1.2)));
+    }
+  }
+  plantGrass(pts, 1.4);
+}
+// 요정 여섯 마리: 앞 바위 능선을 따라 높낮이·크기를 조금씩 달리해 줄지어 지나감(나는 방향으로 기울임)
+{
+  const ridge = rockTops.filter(r => r[2] === 36), hats = ["#c9a7e8", "#f2a7b8", "#9fd3c7", "#f3d48a", "#a9c4f0", "#f0b48c"], glows = ["#fff1c4", "#ffe2ec", "#e6fff4", "#fff6d0", "#e8f0ff", "#ffe8d6"];
+  const pts = []; for (const [a, b] of ridge) for (let t = 0; t < 1; t += 0.5) pts.push(a.clone().lerp(b, t));
+  pts.sort((p, q) => p.x - q.x);
+  // 능선을 따라 오른쪽 끝에서 왼쪽으로 가는 경로(능선보다 조금 위, 바위 앞면보다 살짝 뒤)
+  const path = new THREE.CatmullRomCurve3(pts.slice(Math.floor(pts.length * 0.3)).reverse().map(p => new THREE.Vector3(p.x, p.y + 0.55, 35.1)));
+  const N = 6;
+  for (let i = 0; i < N; i++) {
+    const f = makeFairy(i * 1.37); f.scale.setScalar(0.24 + 0.05 * Math.sin(i * 1.7));
+    f.userData.path = path; f.userData.lead = -i * 0.018 - (i % 2) * 0.006; f.userData.lift = 0.25 * Math.sin(i * 2.1); f.userData.side = 0.3 * Math.cos(i * 1.6);   // 무리 안 자리
+    scene.add(f);
+  }
+}
+
+// 모래 먼지: 바위 앞을 바람 따라 떠다님
+const dustN = 260, dustArr = new Float32Array(dustN * 3);
+for (let i = 0; i < dustN; i++) dustArr.set([(rnd() - 0.5) * 40, 1 + rnd() * 3, 4 + rnd() * 22], i * 3);
+const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute("position", new THREE.BufferAttribute(dustArr, 3));
+scene.add(new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: "#f3d2b0", size: 0.07, transparent: true, opacity: 0.7, depthWrite: false })));
+
+// 트럭: 공연 사진(앞·뒤·옆)과 현대 포니2 픽업(1982) 공식 사진·제원(길이 3.96m, 폭 1.56m, 높이 1.37m, 축간거리 2.34m) 기준.
+// 옅은 하늘빛 회색 차체, 지붕이 평평한 각진 운전석과 큰 창, 차체와 한 덩어리인 낮은 짐칸(난간 없음), 옆면 검은 띠,
+// 앞은 직사각형 헤드라이트와 바깥 주황 방향지시등·검은 그릴·해골 장식, 앞뒤 검은 범퍼, 흰 철제 휠에 검은 캡,
+// 뒤 모서리 세로 후미등과 가운데 아래 번호판(AKMU). 앞이 +x
+function makeTruck() {
+  const g = new THREE.Group();
+  // 낡은 차체(사진): 바랜 하늘색 위에 흰 페인트가 벗겨진 자국, 녹 반점과 녹물 흐른 자국, 아래쪽 때
+  const rustTex = (() => {
+    const N = 512, c = document.createElement("canvas"); c.width = c.height = N; const x = c.getContext("2d"); let s = 7;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    x.fillStyle = "#aac4da"; x.fillRect(0, 0, N, N);
+    for (let i = 0; i < 40; i++) { const g = x.createRadialGradient(rnd() * N, rnd() * N, 0, rnd() * N, rnd() * N, 40 + rnd() * 90); g.addColorStop(0, rnd() < 0.5 ? "rgba(200,215,228,0.45)" : "rgba(140,165,185,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(0, 0, N, N); }
+    const blob = (cx, cy, r, col) => { x.fillStyle = col; x.beginPath(); for (let k = 0; k <= 14; k++) { const a = k / 14 * Math.PI * 2, rr = r * (0.55 + 0.6 * rnd()); x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.85); } x.closePath(); x.fill(); };
+    // 값 잡음(여러 단 겹침)으로 불규칙한 얼룩: 높은 곳은 녹, 다른 잡음의 높은 곳은 흰 페인트 벗겨짐. 녹 아래로 길이가 제각각인 녹물
+    const vn = (() => { const G = 64, v = new Float32Array(G * G); for (let i = 0; i < v.length; i++) v[i] = rnd(); const f = (x0, y0) => { const xi = Math.floor(x0) & 63, yi = Math.floor(y0) & 63, xf = x0 - Math.floor(x0), yf = y0 - Math.floor(y0), sx = xf * xf * (3 - 2 * xf), sy = yf * yf * (3 - 2 * yf), at = (a, b) => v[(b & 63) * G + (a & 63)]; return (at(xi, yi) * (1 - sx) + at(xi + 1, yi) * sx) * (1 - sy) + (at(xi, yi + 1) * (1 - sx) + at(xi + 1, yi + 1) * sx) * sy; }; return (px, py, o) => { let s2 = 0, a = 0.5, fq = 1; for (let k = 0; k < 4; k++) { s2 += a * f(px * fq / 40 + o, py * fq / 40 + o * 1.7); a *= 0.5; fq *= 2; } return s2; }; })();
+    const img = x.getImageData(0, 0, N, N), d = img.data, rust = new Uint8Array(N * N);
+    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+      const i = (py * N + px) * 4, r1 = vn(px, py, 3.1), p1 = vn(px, py, 11.7);
+      if (p1 > 0.66) { const k = Math.min(1, (p1 - 0.66) * 12); d[i] += (236 - d[i]) * k; d[i + 1] += (234 - d[i + 1]) * k; d[i + 2] += (226 - d[i + 2]) * k; }
+      if (r1 > 0.64) { const k = Math.min(1, (r1 - 0.64) * 10), dark = vn(px * 3, py * 3, 5) ; const cr = 120 + 60 * dark, cg = 62 + 30 * dark, cb = 36 + 16 * dark; d[i] += (cr - d[i]) * k; d[i + 1] += (cg - d[i + 1]) * k; d[i + 2] += (cb - d[i + 2]) * k; rust[py * N + px] = 1; }
+    }
+    x.putImageData(img, 0, 0);
+    for (let i = 0; i < 70; i++) { const px = Math.floor(rnd() * N), py = Math.floor(rnd() * N); if (!rust[py * N + px]) continue; const len = 15 + rnd() * 90, gr2 = x.createLinearGradient(0, py, 0, py + len); gr2.addColorStop(0, "rgba(140,78,44,0.55)"); gr2.addColorStop(1, "rgba(140,78,44,0)"); x.fillStyle = gr2; x.fillRect(px - 1 - rnd() * 2, py, 2 + rnd() * 3, len); }
+    const gr = x.createLinearGradient(0, N * 0.7, 0, N); gr.addColorStop(0, "rgba(110,90,80,0)"); gr.addColorStop(1, "rgba(110,90,80,0.35)"); x.fillStyle = gr; x.fillRect(0, 0, N, N);   // 아래쪽 때
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+  })();
+  const body = mat("#ffffff", { map: rustTex, roughness: 0.5 }), black = mat("#232325", { roughness: 0.6 }), glass = mat("#2b313b", { roughness: 0.2 }),
+    tire = mat("#1f1e1e"), rim = mat("#eceae4", { roughness: 0.45 }), floor = mat("#4e4c4c"), bone = mat("#e3dccb", { roughness: 0.7 });
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
+  // 모서리가 둥근 상자(가장 얇은 변의 30%, 최대 6cm)로 각진 느낌을 줄임
+  const box = (w, h, d, m, x, y, z) => { const r = Math.min(0.06, Math.min(w, h, d) * 0.3); return add(r > 0.004 ? new RoundedBoxGeometry(w, h, d, 3, r) : new THREE.BoxGeometry(w, h, d), m, x, y, z); };
+  const L = 3.96, Wd = 1.56, belt = 0.84, low = 0.3, roof = 1.37, cabBack = -0.36, cabFront = 0.78;
+  // 차 밑
+  box(L - 0.3, 0.1, Wd - 0.2, black, 0, low - 0.02, 0);
+  // 앞쪽 차체(보닛·문 아래), 운전석 뒤까지
+  box(L / 2 - cabBack, belt - low, Wd, body, (L / 2 + cabBack) / 2, (belt + low) / 2, 0);
+  // 운전석: 평평한 지붕, 앞유리만 비스듬
+  const cab = new THREE.BoxGeometry(cabFront - cabBack, roof - belt, Wd - 0.06);
+  { const p = cab.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) > 0 && p.getX(i) > 0) p.setX(i, p.getX(i) - 0.32); cab.computeVertexNormals(); }
+  add(cab, body, (cabFront + cabBack) / 2, (roof + belt) / 2, 0);
+  box(0.66, 0.4, Wd - 0.04, glass, (cabFront + cabBack) / 2 - 0.14, 1.11, 0);           // 큰 옆 창
+  const ws = box(0.04, 0.58, Wd - 0.2, glass, cabFront - 0.17, 1.1, 0); ws.rotation.z = 0.5; // 앞유리
+  {
+    // 뒤 유리: 위가 좁은 사다리꼴에 모서리를 살짝 둥글게
+    const bw = (Wd - 0.34) / 2, tw = bw - 0.1, h = 0.36, r = 0.05, sh = new THREE.Shape();
+    sh.moveTo(-bw + r, 0); sh.lineTo(bw - r, 0); sh.quadraticCurveTo(bw, 0, bw - 0.01, r);
+    sh.lineTo(tw + 0.01, h - r); sh.quadraticCurveTo(tw, h, tw - r, h); sh.lineTo(-tw + r, h);
+    sh.quadraticCurveTo(-tw, h, -tw - 0.01, h - r); sh.lineTo(-bw + 0.01, r); sh.quadraticCurveTo(-bw, 0, -bw + r, 0);
+    const rw = new THREE.Mesh(new THREE.ShapeGeometry(sh, 6), glass);
+    rw.rotation.y = -Math.PI / 2; rw.position.set(cabBack - 0.006, 1.12 - h / 2, 0); g.add(rw);
+  }
+  // 짐칸: 낮은 옆벽(허리선까지), 바닥, 뒷문
+  const bedLen = L / 2 + cabBack, bedX = (-L / 2 + cabBack) / 2;
+  // 짐칸 바닥: 길이 방향 판자(밝기를 번갈아)
+  for (let i = 0; i < 8; i++) {
+    const w = (Wd - 0.12) / 8;
+    box(bedLen, 0.06, w - 0.01, mat(i % 2 ? "#706a5c" : "#7d7767"), bedX, 0.52, -(Wd - 0.12) / 2 + w * (i + 0.5));
+  }
+  // 짐칸 안쪽 벽: 세로 골
+  for (const z of [-(Wd / 2 - 0.225), Wd / 2 - 0.225]) for (let x = -L / 2 + 0.2; x < cabBack - 0.1; x += 0.22) box(0.04, belt - 0.55, 0.02, mat("#9aaebd"), x, (belt + 0.55) / 2, z);
+  // 짐칸 옆벽(사진·정리도): 안팎 두 겹 철판으로 된 두툼한 벽. 뒤에서 보면 단면이 위 모서리만 살짝 둥근 네모이고,
+  // 그 뒤 끝면에 후미등이 박힘. 앞뒤 끝 모서리도 둥글게 깎음
+  for (const sd of [-1, 1]) {
+    // 단면: 위가 평평하고 위 두 모서리만 살짝 둥근 네모(사용자 지정)
+    const hw = 0.11, r = 0.035, y0 = low, y1 = belt + 0.06, sh = new THREE.Shape();
+    sh.moveTo(-hw, y0); sh.lineTo(hw, y0); sh.lineTo(hw, y1 - r); sh.quadraticCurveTo(hw, y1, hw - r, y1);
+    sh.lineTo(-hw + r, y1); sh.quadraticCurveTo(-hw, y1, -hw, y1 - r); sh.lineTo(-hw, y0);
+    const len = bedLen - 0.08;
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.015, bevelSegments: 3, curveSegments: 10 });
+    geo.rotateY(Math.PI / 2); geo.translate(-L / 2 + 0.04, 0, sd * (Wd / 2 - 0.11));
+    add(geo, body, 0, 0, 0);
+  }
+  // 뒷문: 아래로 펼쳐 열어 둔 상태(바닥 높이에서 뒤로 수평으로 뻗음)
+  box(belt - low, 0.05, Wd - 0.08, body, -L / 2 - (belt - low) / 2, 0.52, 0);
+  // 뒷문 아래 차체 색 뒤 패널(사진: 펼친 뒷문 밑에 흰 패널이 있고 가운데에 번호판)
+  box(0.06, 0.24, Wd, body, -L / 2 + 0.01, 0.39, 0);
+  // 펼친 뒷문을 붙잡는 쇠줄
+  // (사용자 지정 위치) 후미등 기둥 안쪽 모서리에서 시작해 뒷문 끝 쪽으로 조금 바깥으로 벌어짐
+  for (const sd of [-1, 1]) {
+    const a = new THREE.Vector3(-L / 2 + 0.03, belt - 0.03, sd * (Wd / 2 - 0.27)), b = new THREE.Vector3(-L / 2 - (belt - low) + 0.04, 0.54, sd * (Wd / 2 - 0.25));
+    const d = new THREE.Vector3().subVectors(b, a), cable = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, d.length(), 5), mat("#3c3a38", { roughness: 0.4, metalness: 0.4 }));
+    cable.position.copy(a).addScaledVector(d, 0.5); cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); g.add(cable);
+  }
+  // 짐칸 틀(사용자 스케치): 양옆이 한 줄로 둥글게 굽은 녹슨 주황 파이프. 앞뒤 끝이 둥근 모서리로 꺾여 짐칸 옆벽에 박히고,
+  // 그 사이를 기둥 2개가 받침(앞쪽은 비스듬, 뒤쪽은 수직)
+  {
+    // 녹슨 쇠 파이프: 주황·갈색 바탕에 크고 부드러운 얼룩이 은은하게 번짐. 길이 방향으로 반복해 얼룩이 늘어나지 않게
+    const pipeTex = (() => {
+      const N = 128, c = document.createElement("canvas"); c.width = c.height = N; const x = c.getContext("2d"); let s = 3; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      x.fillStyle = "#a65d34"; x.fillRect(0, 0, N, N);
+      for (let i = 0; i < 14; i++) { const cx = rnd() * N, cy = rnd() * N, r = 18 + rnd() * 30, g = x.createRadialGradient(cx, cy, 0, cx, cy, r); const lite = i % 2 === 0; g.addColorStop(0, lite ? "rgba(200,122,70,0.45)" : "rgba(120,62,36,0.35)"); g.addColorStop(1, "rgba(0,0,0,0)"); for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) { x.save(); x.translate(ox, oy); x.fillStyle = g; x.fillRect(cx - r, cy - r, r * 2, r * 2); x.restore(); } }   // 크고 부드러운 얼룩(이음매 없이)
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(5, 1); t.anisotropy = 4; return t;
+    })();
+    const pipe = mat("#ffffff", { map: pipeTex, roughness: 0.55 }), r = 0.028;
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const tubeAlong = path => { const m = new THREE.Mesh(new THREE.TubeGeometry(path, 48, r, 8, false), pipe); m.castShadow = true; g.add(m); };
+    const fx = cabBack - 0.08, rx = -L / 2 + 0.1, topY = 1.38, bend = 0.22, zs = [-(Wd / 2 - 0.05), Wd / 2 - 0.05];
+    for (const z of zs) {
+      const path = new THREE.CurvePath();
+      path.add(new THREE.LineCurve3(V(fx, belt, z), V(fx, topY - bend, z)));
+      path.add(new THREE.QuadraticBezierCurve3(V(fx, topY - bend, z), V(fx, topY, z), V(fx - bend, topY, z)));
+      path.add(new THREE.LineCurve3(V(fx - bend, topY, z), V(rx + bend, topY, z)));
+      path.add(new THREE.QuadraticBezierCurve3(V(rx + bend, topY, z), V(rx, topY, z), V(rx, topY - bend, z)));
+      path.add(new THREE.LineCurve3(V(rx, topY - bend, z), V(rx, belt, z)));
+      tubeAlong(path);
+      const span = fx - rx;
+      tubeAlong(new THREE.LineCurve3(V(fx - span * 0.28, topY, z), V(fx - span * 0.38, belt, z))); // 앞쪽 비스듬한 기둥
+      tubeAlong(new THREE.LineCurve3(V(fx - span * 0.68, topY, z), V(fx - span * 0.68, belt, z))); // 뒤쪽 수직 기둥
+    }
+    // 운전석 지붕 위: 지붕 양쪽 가장자리에서 올라와 둥근 모서리로 꺾여 가로지르는 U자 파이프. 지붕 위에 앉은 남자 인물의 등 뒤(트럭 앞쪽)에 놓임
+    {
+      const ux = 0.06, hy = 1.66, hb = 0.16, base = roof, path = new THREE.CurvePath();
+      path.add(new THREE.LineCurve3(V(ux, base, zs[0]), V(ux, hy - hb, zs[0])));
+      path.add(new THREE.QuadraticBezierCurve3(V(ux, hy - hb, zs[0]), V(ux, hy, zs[0]), V(ux, hy, zs[0] + hb)));
+      path.add(new THREE.LineCurve3(V(ux, hy, zs[0] + hb), V(ux, hy, zs[1] - hb)));
+      path.add(new THREE.QuadraticBezierCurve3(V(ux, hy, zs[1] - hb), V(ux, hy, zs[1]), V(ux, hy - hb, zs[1])));
+      path.add(new THREE.LineCurve3(V(ux, hy - hb, zs[1]), V(ux, base, zs[1])));
+      tubeAlong(path);
+    }
+  }
+  // 옆면 검은 띠(앞에서 뒤까지)
+  for (const z of [-(Wd / 2 + 0.003), Wd / 2 + 0.003]) box(L - 0.1, 0.035, 0.005, black, 0, 0.56, z);
+  // 후미등(옛 차): 모서리가 둥근 은색 크롬 테 안에 검은 고무 테, 위는 주황·아래는 빨강 렌즈(모서리 둥글고 살짝 볼록).
+  // 렌즈에는 가로 줄무늬와 작은 다이아몬드 반사 무늬, 가운데가 은은하게 밝음
+  const lensTex = (base, hi, lo) => {
+    const N = 128, c = document.createElement("canvas"); c.width = c.height = N; const x = c.getContext("2d");
+    x.fillStyle = base; x.fillRect(0, 0, N, N);
+    for (let y = 0; y < N; y += 8) { x.fillStyle = lo; x.fillRect(0, y, N, 2); x.fillStyle = hi; x.fillRect(0, y + 3, N, 1.5); }
+    for (let yy = 4; yy < N; yy += 16) for (let xx = (yy / 16 % 2) * 8 + 4; xx < N; xx += 16) { x.fillStyle = hi; x.beginPath(); x.moveTo(xx, yy - 4); x.lineTo(xx + 4, yy); x.lineTo(xx, yy + 4); x.lineTo(xx - 4, yy); x.closePath(); x.globalAlpha = 0.45; x.fill(); x.globalAlpha = 1; }
+    const g = x.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N * 0.6); g.addColorStop(0, "rgba(255,240,210,0.45)"); g.addColorStop(1, "rgba(255,240,210,0)"); x.fillStyle = g; x.fillRect(0, 0, N, N);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  const amberM = mat("#ffffff", { map: lensTex("#e8952f", "#ffd27a", "#b8681c"), emissive: "#c06a18", emissiveIntensity: 0.35 });
+  const redM = mat("#ffffff", { map: lensTex("#c42a20", "#ff8a6a", "#7e1410"), emissive: "#a01c14", emissiveIntensity: 0.45 });
+  const chrome = mat("#d9d7d2", { roughness: 0.3 }), rubber = mat("#232325");
+  for (const s of [-1, 1]) {
+    const z = s * (Wd / 2 - 0.11);
+    add(new RoundedBoxGeometry(0.03, 0.31, 0.16, 4, 0.03), chrome, -L / 2 - 0.012, 0.69, z);            // 크롬 테
+    add(new RoundedBoxGeometry(0.03, 0.29, 0.14, 4, 0.025), rubber, -L / 2 - 0.016, 0.69, z);           // 고무 테
+    const am = add(new RoundedBoxGeometry(0.03, 0.095, 0.124, 4, 0.014), amberM, -L / 2 - 0.022, 0.785, z); am.scale.x = 1.15;   // 주황 렌즈
+    const rd = add(new RoundedBoxGeometry(0.03, 0.165, 0.124, 4, 0.014), redM, -L / 2 - 0.022, 0.643, z); rd.scale.x = 1.2;      // 빨강 렌즈
+    add(new RoundedBoxGeometry(0.012, 0.004, 0.13, 2, 0.002), chrome, -L / 2 - 0.035, 0.732, z);        // 두 렌즈 사이 크롬 띠
+  }
+  box(0.07, 0.05, Wd + 0.02, mat("#c9c7c2", { roughness: 0.35, metalness: 0.3 }), -L / 2 - 0.03, 0.29, 0); // 얇은 은색 범퍼
+  {
+    const c = document.createElement("canvas"); c.width = 256; c.height = 96;
+    const x = c.getContext("2d"); x.fillStyle = "#f3eedf"; x.fillRect(0, 0, 256, 96);
+    x.fillStyle = "#1f1f22"; x.font = "bold 64px Arial, sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("AKMU", 128, 52);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.15), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }));
+    plate.position.set(-L / 2 - 0.025, 0.4, 0); plate.rotation.y = -Math.PI / 2; g.add(plate);
+  }
+  // 앞: 검은 그릴, 직사각형 헤드라이트와 바깥 주황 방향지시등, 해골 장식, 검은 범퍼, 보닛 위 사이드미러
+  box(0.03, 0.18, Wd - 0.5, black, L / 2 + 0.005, 0.66, 0);
+  for (const s of [-1, 1]) {
+    box(0.03, 0.15, 0.26, mat("#fff4d2", { emissive: "#ffe8a8", emissiveIntensity: 0.6 }), L / 2 + 0.01, 0.66, s * 0.52);
+    box(0.03, 0.15, 0.08, mat("#e89a3c", { emissive: "#e08a2a", emissiveIntensity: 0.4 }), L / 2 + 0.01, 0.66, s * 0.72);
+    box(0.06, 0.06, 0.04, black, L / 2 - 0.35, belt + 0.05, s * 0.66);
+  }
+  add(new THREE.DodecahedronGeometry(0.1, 0), bone, L / 2 + 0.05, 0.6, 0).scale.set(0.6, 1, 1.1);
+  box(0.12, 0.13, Wd + 0.04, black, L / 2 + 0.04, 0.38, 0);
+  // 바퀴: 검은 타이어, 흰 철제 휠, 가운데 검은 캡
+  for (const x of [1.17, -1.17]) for (const z of [-(Wd / 2 - 0.12), Wd / 2 - 0.12]) {
+    const t = add(new THREE.CylinderGeometry(0.29, 0.29, 0.19, 12), tire, x, 0.29, z); t.rotation.x = Math.PI / 2;
+    const h = add(new THREE.CylinderGeometry(0.18, 0.18, 0.2, 10), rim, x, 0.29, z); h.rotation.x = Math.PI / 2;
+    const c = add(new THREE.CylinderGeometry(0.07, 0.07, 0.21, 8), black, x, 0.29, z); c.rotation.x = Math.PI / 2;
+  }
+  return g;
+}
+
+// 트럭 장면: 배경과 따로, 땅에 가까운 낮은 카메라가 살짝 올려다보며 그림(배경 위에 겹쳐 그림)
+const truckScene = new THREE.Scene();
+const truckCam = new THREE.PerspectiveCamera(32, W / H, 0.05, 80);
+truckCam.position.set(0, 0.2, 6.0);
+truckCam.lookAt(0, 1.45, 0);   // 낮은 데서 올려다봄
+{
+  const tSun = new THREE.DirectionalLight("#fff0d8", 1.9);
+  tSun.position.set(-4, 5, 4); tSun.castShadow = true; tSun.shadow.mapSize.set(2048, 2048);
+  Object.assign(tSun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 0.5, far: 20 });
+  tSun.shadow.bias = -0.0005; tSun.shadow.normalBias = 0.02;
+  const tBounce = new THREE.DirectionalLight("#9fb0ff", 0.55); tBounce.position.set(4, 3, -3);
+  const tRim = new THREE.DirectionalLight("#ffd9b0", 1.3); tRim.position.set(-2.5, 4.5, -6);   // 뒤 위쪽에서 오는 따뜻한 역광: 인물 가장자리에 빛 테두리
+  truckScene.add(tSun, tBounce, tRim, new THREE.HemisphereLight("#c3cdff", "#ab8cb8", 0.95));
+  // 무대 바닥과 그 위 흙길(트럭 앞뒤로 곧게 뻗음)
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(14, 22), mat("#c9a593"));
+  ground.rotation.x = -Math.PI / 2; ground.position.z = 6; ground.receiveShadow = true; truckScene.add(ground);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 22), mat("#dcc6b6", { polygonOffset: true, polygonOffsetFactor: -2 }));
+  road.rotation.x = -Math.PI / 2; road.position.set(0, 0.005, 6); road.receiveShadow = true; truckScene.add(road);
+}
+const truck = makeTruck();
+truck.rotation.y = Math.PI / 2; // 앞이 바위(화면 안쪽), 뒷모습이 카메라 쪽
+const TS = 0.88; truck.scale.setScalar(TS);   // 화면에서 트럭 비중을 줄이고 인물을 상대적으로 크게(의도적인 원근 정리)
+truckScene.add(truck);
+const PROP_SWAY = [];   // 바람에 흔들리는 트럭 좌우 수풀(이삭 풀은 크게, 덤불은 작게)
+// 트럭 좌우 무대 소품(공연 무대: 풀이 자란 바위). 양쪽에 풀과 들꽃이 자란 바위 무더기, 오른쪽 뒤에 마른 덤불
+{
+  // 둥근 바위: 매끈한 구를 낮은 주파수로 울퉁불퉁하게, 아래는 땅에 묻히게 평평(잘게 깎인 면이 없어 윤곽선이 지저분하지 않음)
+  const rockGeo = (r, seed) => { const g = BufferUtils.mergeVertices(new THREE.IcosahedronGeometry(r, 4)), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i) / r, y = p.getY(i) / r, z = p.getZ(i) / r, k = 0.86 + 0.18 * (fbm(x * 1.3 + seed, z * 1.3 + y) - 0.5) * 2 + 0.06 * Math.sin(x * 3 + seed); p.setXYZ(i, x * r * k * 1.15, Math.max(y * r * k * 0.72, -r * 0.2), z * r * k); } g.computeVertexNormals(); return g; };
+  const rockM = [mat("#b9868a"), mat("#a37480"), mat("#c99a8e")];
+  const prop = new THREE.Group(); truckScene.add(prop);
+  const put = (geo, m, x, y, z, ry = 0, sc = 1) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.y = ry; o.scale.setScalar(sc); o.castShadow = o.receiveShadow = true; prop.add(o); return o; };
+  // 바위
+  for (const [x, z, r, sd, ry] of [[1.2, -0.7, 0.55, 3, 0.4], [1.6, -1.5, 0.45, 7, 1.2], [0.98, 0.35, 0.26, 11, 0.2], [-1.0, 0.45, 0.3, 5, 0.9], [-1.45, 0.25, 0.22, 13, 2.1]]) put(rockGeo(r, sd), rockM[sd % 3], x, r * 0.35, z, ry);
+  // 풀 포기(바람에 흔들리는 배경 풀과 같은 재질)
+  const tufts = [[0.95, -0.25], [1.4, -0.1], [1.75, -0.8], [0.9, 0.75], [1.3, 0.55], [1.85, -1.9], [-0.95, 0.85], [-1.3, 0.75], [-1.7, 0.4], [-0.95, 0.05], [-1.9, -0.3], [1.1, -1.2], [-1.15, -1.9], [-1.55, -2.1]];
+  const im = new THREE.InstancedMesh(TUFT, GRASS_MAT, tufts.length), m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), tn = ["#9fae6c", "#8aa36a", "#b4b277"].map(c => new THREE.Color(c));
+  tufts.forEach(([x, z], i) => { m4.compose(new THREE.Vector3(x, 0, z), qq.setFromEuler(new THREE.Euler(0, i * 1.7, 0)), new THREE.Vector3(0.45, 0.45, 0.45)); im.setMatrixAt(i, m4); im.setColorAt(i, tn[i % 3]); });
+  prop.add(im);
+  // 들꽃: 가는 줄기 끝에 작은 꽃(분홍·노랑·흰)
+  const stemM = mat("#7f9a5e"), flowerM = [mat("#e98fa5"), mat("#f2d27a"), mat("#f6f1e8"), mat("#b9a0e0")];
+  for (let i = 0; i < 26; i++) { const right = i < 16, x = right ? 0.9 + (i * 0.37 % 0.8) : -0.9 - (i * 0.41 % 0.8), z = right ? -1.4 + (i * 0.53 % 2.1) : -0.2 + (i * 0.29 % 1.1), h = 0.12 + (i % 4) * 0.04; put(new THREE.CylinderGeometry(0.004, 0.005, h, 4), stemM, x, h / 2, z); put(new THREE.SphereGeometry(0.022, 8, 6), flowerM[i % 4], x, h, z); }
+  // 마른 덤불(오른쪽 뒤): 가는 가지가 둥글게 뻗음
+  { const bush = new THREE.Group(); bush.position.set(1.55, 0, -2.3); bush.scale.setScalar(1.6); prop.add(bush); const br = mat("#8a6a4c"); for (let i = 0; i < 22; i++) { const a = i * 2.4, el = 0.4 + (i % 5) * 0.18, L = 0.35 + (i % 3) * 0.12, c = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.009, L, 4), br); c.position.set(Math.cos(a) * Math.cos(el) * L / 2, Math.sin(el) * L / 2, Math.sin(a) * Math.cos(el) * L / 2); c.lookAt(Math.cos(a) * Math.cos(el) * L, Math.sin(el) * L, Math.sin(a) * Math.cos(el) * L); c.rotateX(Math.PI / 2); bush.add(c); } }
+  // 중간 높이까지 채우는 큰 바위(겹쳐 쌓음), 흰 이삭이 달린 키 큰 풀, 꽃이 핀 덤불
+  for (const [x, z, r, sd, ry, yy] of [[1.55, -2.4, 0.85, 23, 0.3, 0], [1.25, -2.0, 0.5, 29, 1.1, 0.55], [-1.6, -2.6, 0.9, 31, 0.8, 0], [-1.3, -2.2, 0.45, 37, 2.4, 0.6], [2.0, -3.4, 0.75, 41, 0.5, 0], [-2.05, -3.6, 0.7, 43, 1.7, 0]]) put(rockGeo(r, sd), rockM[sd % 3], x, r * 0.35 + yy, z, ry);
+  const pampas = (x, z, sc) => {
+    const g2 = new THREE.Group(); g2.position.set(x, 0, z); g2.scale.setScalar(sc); prop.add(g2); PROP_SWAY.push({ o: g2, amp: 0.09, sp: 1.3, ph: x * 2 + z });
+    const leafM = mat("#8f9a62", { side: THREE.DoubleSide }), stalkM = mat("#c8b48a"), plumeM = mat("#eadcc0", { emissive: new THREE.Color("#2e2820") });
+    for (let i = 0; i < 18; i++) { const a = i * 2.4, lean = 0.25 + (i % 4) * 0.12, L = 0.55 + (i % 3) * 0.2; const b = new THREE.Mesh(new THREE.ConeGeometry(0.012, L, 3), leafM); b.position.set(Math.cos(a) * Math.sin(lean) * L / 2, Math.cos(lean) * L / 2, Math.sin(a) * Math.sin(lean) * L / 2); b.rotation.set(Math.sin(a) * lean, 0, -Math.cos(a) * lean); g2.add(b); }
+    for (let i = 0; i < 5; i++) { const a = i * 1.3, lean = 0.08 + i * 0.05, L = 1.0 + (i % 2) * 0.25; const st = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.007, L, 4), stalkM); st.position.set(Math.cos(a) * Math.sin(lean) * L / 2, L / 2, Math.sin(a) * Math.sin(lean) * L / 2); st.rotation.set(Math.sin(a) * lean, 0, -Math.cos(a) * lean); g2.add(st); const pl = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), plumeM); pl.scale.set(0.028, 0.12, 0.028); pl.position.set(Math.cos(a) * Math.sin(lean) * L, L + 0.08, Math.sin(a) * Math.sin(lean) * L); pl.rotation.set(Math.sin(a) * lean, 0, -Math.cos(a) * lean); g2.add(pl); }
+  };
+  pampas(1.05, -1.35, 1.0); pampas(1.85, -1.1, 0.85); pampas(-1.05, -1.5, 1.05); pampas(-1.8, -1.2, 0.9);
+  const flowerBush = (x, z, sc, cols, y = 0) => {
+    const g2 = new THREE.Group(); g2.position.set(x, y, z); g2.scale.setScalar(sc); prop.add(g2); PROP_SWAY.push({ o: g2, amp: 0.035, sp: 1.1, ph: x * 1.7 + z });
+    const leafM = mat("#7f9a64"), fm = cols.map(c => mat(c));
+    for (let i = 0; i < 9; i++) { const a = i * 2.2, rr = 0.12 + (i % 3) * 0.08, s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16 + (i % 2) * 0.05, 1), leafM); s.position.set(Math.cos(a) * rr, 0.14 + (i % 3) * 0.08, Math.sin(a) * rr); s.castShadow = true; g2.add(s); }
+    for (let i = 0; i < 34; i++) { const a = i * 2.39996, el = 0.3 + (i % 5) * 0.2, rr = 0.26, f = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), fm[i % fm.length]); f.position.set(Math.cos(a) * Math.cos(el) * rr, 0.16 + Math.sin(el) * rr, Math.sin(a) * Math.cos(el) * rr); g2.add(f); }
+  };
+  flowerBush(0.95, -0.6, 1.0, ["#e98fa5", "#f6f1e8"]); flowerBush(1.6, -0.3, 0.8, ["#f2d27a", "#e98fa5"]); flowerBush(-0.98, -0.75, 1.0, ["#b9a0e0", "#f6f1e8"]); flowerBush(-1.65, -0.45, 0.85, ["#f2d27a", "#e98fa5"]);
+  // 화면에 보이는 트럭 옆 띠(트럭 바깥 ~ 화면 끝)에 덤불·꽃·이삭 풀·풀 포기를 더 심음. 깊이에 따라 보이는 폭이 달라 자리를 깊이별로 정함
+  const band = (z, side, u) => { const half = (6 - z) * 0.205, inner = 0.78; return side * (inner + (half - inner) * u); };
+  // 둥근 초록 덤불(꽃 없음): 잎 덩어리 몇 개를 뭉침
+  const greenBush = (x, y, z, sc) => { const g2 = new THREE.Group(); g2.position.set(x, y, z); g2.scale.setScalar(sc); prop.add(g2); PROP_SWAY.push({ o: g2, amp: 0.03, sp: 1.0, ph: x * 1.3 + z * 0.7 }); const lm = [mat("#7f9a64"), mat("#6f8c5c"), mat("#93a873")]; for (let i = 0; i < 7; i++) { const a = i * 2.3, rr = 0.1 + (i % 3) * 0.07, s = new THREE.Mesh(new THREE.SphereGeometry(0.14 + (i % 2) * 0.05, 14, 10), lm[i % 3]); s.position.set(Math.cos(a) * rr, 0.12 + (i % 3) * 0.06, Math.sin(a) * rr); s.castShadow = true; g2.add(s); } };
+  for (const side of [-1, 1]) {
+    const cols = side > 0 ? [["#e98fa5", "#f6f1e8"], ["#f2d27a", "#e98fa5"], ["#b9a0e0", "#f6f1e8"]] : [["#b9a0e0", "#f6f1e8"], ["#f2d27a", "#e98fa5"], ["#e98fa5", "#f2d27a"]];
+    // 앞쪽(카메라 가까이)부터 뒤쪽까지 깊이별로
+    [[1.2, 0.55, 0.75], [0.4, 0.45, 0.9], [-0.4, 0.6, 0.85], [-1.1, 0.35, 1.0], [-1.8, 0.7, 0.9]].forEach(([z, u, sc], i) => flowerBush(band(z, side, u), z, sc, cols[i % 3]));
+    [[0.9, 0.9, 0.7], [0.0, 0.85, 0.8], [-0.8, 0.2, 0.9], [-1.5, 0.95, 0.8], [-2.2, 0.5, 1.0]].forEach(([z, u, sc]) => greenBush(band(z, side, u), 0, z, sc));
+    [[0.2, 0.8, 0.6], [-0.9, 0.7, 0.85], [-1.9, 0.3, 0.9]].forEach(([z, u, sc]) => pampas(band(z, side, u), z, sc));
+  }
+  // 풀 포기를 띠 전체에 촘촘히
+  { const pts2 = []; for (const side of [-1, 1]) for (let i = 0; i < 26; i++) { const z = 1.6 - (i / 25) * 4.4, u = (i * 0.618) % 1; pts2.push([band(z, side, u), z]); }
+    const im2 = new THREE.InstancedMesh(TUFT, GRASS_MAT, pts2.length), m5 = new THREE.Matrix4(), q5 = new THREE.Quaternion(), tn2 = ["#9fae6c", "#8aa36a", "#b4b277"].map(c => new THREE.Color(c));
+    pts2.forEach(([x, z], i) => { const k = 0.4 + (i % 5) * 0.08; m5.compose(new THREE.Vector3(x, 0, z), q5.setFromEuler(new THREE.Euler(0, i * 2.1, 0)), new THREE.Vector3(k, k, k)); im2.setMatrixAt(i, m5); im2.setColorAt(i, tn2[i % 3]); });
+    prop.add(im2); }
+  // 앞쪽 큰 바위 위에도 덤불과 꽃
+  greenBush(1.5, 0.5, -2.35, 0.9); flowerBush(1.3, -2.0, 0.7, ["#f2d27a", "#f6f1e8"], 0.5); greenBush(-1.55, 0.55, -2.55, 0.95); flowerBush(-1.3, -2.15, 0.7, ["#e98fa5", "#f6f1e8"], 0.55);
+  // 왼쪽 뒤 바위 무더기(오른쪽과 짝)
+  for (const [x, z, r, sd, ry] of [[-1.25, -0.9, 0.5, 17, 0.7], [-1.65, -1.7, 0.42, 19, 1.9]]) put(rockGeo(r, sd), rockM[sd % 3], x, r * 0.35, z, ry);
+}
+
+// 여자 인물(woman.js, 배경과 같은 셀 처리): 펼친 뒷문 끝에 걸터앉음. 화면 가운데에서 살짝 왼쪽
+const woman = buildWoman({ THREE, mat, RoundedBoxGeometry });
+woman.group.position.set(-0.2, 0.545 * TS + 0.035, 2.52 * TS - 0.3);   // 뒷문 윗면·끝(트럭 크기에 맞춤)
+truckScene.add(woman.group);
+// 남자 인물(man.js, 사진): 짐칸 앞 짐 더미 위에 걸터앉아 다리를 꼼. 한 발은 짐칸 바닥을 딛음
+const man = buildMan({ THREE, mat, RoundedBoxGeometry });
+// 짐 더미: 짐칸 맨 앞(운전석 바로 뒤)에 아래부터 나무 상자, 낡은 갈색 가죽 트렁크, 초록 트렁크를 조금씩 엇갈리게 쌓음
+const CARGO_X = 0.17, CARGO_Z = 0.56, BED_Y = 0.55 * TS;
+const cargo = new THREE.Group(); cargo.position.set(CARGO_X, BED_Y, CARGO_Z); truckScene.add(cargo);
+let cargoTop = 0;
+{
+  const put = (geo, m, x, y, z, ry = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; cargo.add(o); return o; };
+  const wood = mat("#a7784e"), woodD = mat("#7a5232"), leather = mat("#7a4a32"), leatherD = mat("#5a3424"), green = mat("#7f9a7a"), greenD = mat("#5f7a5c"), brass = mat("#c9a65a"), strap = mat("#3d2a20");
+  // 나무 상자(판자 무늬: 가로 띠)
+  const cH = 0.16; put(new THREE.BoxGeometry(0.52, cH, 0.42), wood, 0, cH / 2, 0);
+  for (const y of [0.055, 0.11]) put(new THREE.BoxGeometry(0.525, 0.008, 0.425), woodD, 0, y, 0);
+  for (const x of [-0.25, 0.25]) put(new THREE.BoxGeometry(0.03, cH, 0.43), woodD, x, cH / 2, 0);
+  // 낡은 갈색 가죽 트렁크(가죽 끈 두 줄, 놋쇠 모서리)
+  const tH = 0.14, tY = cH + tH / 2; put(new RoundedBoxGeometry(0.48, tH, 0.34, 3, 0.02), leather, 0.01, tY, 0.01, -0.08);
+  for (const x of [-0.13, 0.13]) put(new THREE.BoxGeometry(0.03, tH + 0.006, 0.345), strap, 0.01 + x, tY, 0.01, -0.08);
+  for (const [x, z] of [[-0.23, 0.16], [0.24, 0.16], [-0.23, -0.15], [0.24, -0.15]]) put(new THREE.BoxGeometry(0.03, 0.03, 0.03), brass, x, tY + 0.055, z, -0.08);
+  // 초록 트렁크(사진)
+  const gH = 0.12, gY = cH + tH + gH / 2; put(new RoundedBoxGeometry(0.42, gH, 0.28, 3, 0.02), green, -0.02, gY, 0.0, 0.1);
+  for (const y of [-0.035, 0.035]) put(new THREE.BoxGeometry(0.425, 0.01, 0.285), greenD, -0.02, gY + y, 0, 0.1);
+  { const h = put(new THREE.TorusGeometry(0.035, 0.006, 6, 16, Math.PI), greenD, -0.02, gY + 0.0, 0.145, 0.1); h.rotation.z = Math.PI; }
+  cargoTop = cH + tH + gH;
+}
+man.group.position.set(CARGO_X, BED_Y + cargoTop + 0.005, CARGO_Z - 0.03); man.group.rotation.set(-0.12, 0, 0); man.group.scale.setScalar(1.3);   // 짐 더미 위에 걸터앉아 운전석 뒷벽 쪽으로 살짝 기댐   // 찬혁은 1.3배(의도적인 원근 정리)
+truckScene.add(man.group);
+
+// 하늘 비중 줄이기: 원근은 그대로 두고 아래쪽까지 더 보이게 화면을 아래로 옮김(바위·길을 사진 자리에 놓은 뒤에 적용)
+{
+  const extra = 0.24; // 화면 높이의 24%만큼 아래로(하늘을 줄이고 배경 산·언덕을 더 보임)
+  camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (1 + 2 * extra)));
+  camera.aspect = W / (H * (1 + 2 * extra));
+  camera.setViewOffset(W, H * (1 + 2 * extra), 0, H * (2 * extra), W, H);
+}
+
+// 조명: 따뜻한 햇빛, 그늘은 하늘빛을 받아 푸르게
+const SUN_DIR = new THREE.Vector3(-0.6, 0.45, 0.5).normalize();
+const sun = new THREE.DirectionalLight("#fff0d8", 1.9);
+const sunTarget = new THREE.Object3D(); sunTarget.position.set(0, 0, -6); scene.add(sunTarget);
+sun.target = sunTarget; sun.position.copy(sunTarget.position).addScaledVector(SUN_DIR, 60);
+sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 200 });
+sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05; sun.shadow.radius = 3;
+scene.add(sun);
+// 애니 배경처럼 그림자가 어둡지 않고 색이 있게: 반대편에서 오는 차가운 반사광과 보랏빛 바닥의 하늘빛
+{ const bounce = new THREE.DirectionalLight("#9fb0ff", 0.55); bounce.position.copy(SUN_DIR).multiplyScalar(-60).setY(20); scene.add(bounce); }
+scene.add(new THREE.HemisphereLight("#c3cdff", "#ab8cb8", 0.95));
+
+// 화면 처리(sakura-crossing 방식): 배경과 트럭 장면을 각각 색+깊이로 1.5배 해상도에 그림 →
+// 깊이의 2차 차분(라플라시안)으로 실제 윤곽·접힘에만 먹선, 멀수록 옅게 → 트럭을 배경 위에 합성 →
+// 어두운 곳은 보랏빛, 밝은 곳은 따뜻한 종이빛으로 나누는 색 보정
+const PR = 1.5;
+function makeRT() {
+  const rt = new THREE.WebGLRenderTarget(W * PR, H * PR, { type: THREE.HalfFloatType });
+  rt.depthTexture = new THREE.DepthTexture(W * PR, H * PR); rt.depthTexture.type = THREE.UnsignedIntType;
+  return rt;
+}
+const rtBg = makeRT(), rtFg = makeRT();
+const post = new THREE.ShaderMaterial({
+  uniforms: {
+    tBg: { value: rtBg.texture }, dBg: { value: rtBg.depthTexture }, tFg: { value: rtFg.texture }, dFg: { value: rtFg.depthTexture },
+    nfBg: { value: new THREE.Vector2(camera.near, camera.far) }, nfFg: { value: new THREE.Vector2(0.05, 80) },
+    texel: { value: new THREE.Vector2(2.2 / (W * PR), 2.2 / (H * PR)) }, ink: { value: new THREE.Color("#3b2c40") },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`,
+  fragmentShader: `
+    uniform sampler2D tBg, dBg, tFg, dFg; uniform vec2 nfBg, nfFg, texel; uniform vec3 ink; varying vec2 vUv;
+    float lin(sampler2D d, vec2 uv, vec2 nf){ float z = texture2D(d, uv).x; return nf.x * nf.y / (nf.y - z * (nf.y - nf.x)); }
+    // 깊이의 2차 차분: 평면에서는 0, 실제 윤곽과 접힘에서만 커짐. 바깥 윤곽(볼록)은 진하게, 안쪽 모서리는 연하게
+    float edge(sampler2D d, vec2 uv, vec2 nf, float far0, float far1){
+      float c = lin(d, uv, nf);
+      float s = lin(d, uv + vec2(texel.x, 0.), nf) + lin(d, uv - vec2(texel.x, 0.), nf) + lin(d, uv + vec2(0., texel.y), nf) + lin(d, uv - vec2(0., texel.y), nf) - 4. * c;
+      float k = s / c;
+      float e = smoothstep(0.004, 0.02, k) + 0.45 * smoothstep(0.008, 0.04, -k);
+      return clamp(e, 0., 1.) * (1. - smoothstep(far0, far1, c));
+    }
+    // 선 굵기: 주변 몇 점에서 찾은 선 중 가장 진한 값을 써서 화면에서 2~3px 굵기가 되게 함
+    float thick(sampler2D d, vec2 uv, vec2 nf, float far0, float far1){
+      float e = edge(d, uv, nf, far0, far1);
+      e = max(e, edge(d, uv + vec2(texel.x, 0.), nf, far0, far1)); e = max(e, edge(d, uv - vec2(texel.x, 0.), nf, far0, far1));
+      e = max(e, edge(d, uv + vec2(0., texel.y), nf, far0, far1)); e = max(e, edge(d, uv - vec2(0., texel.y), nf, far0, far1));
+      return e;
+    }
+    // 앞 물체 가장자리: 이웃 픽셀이 2.5cm 이상 뒤에 있으면 이쪽(앞)에 선을 그음. 팔과 머리카락·트럭이 겹친 곳의 경계
+    float gap(sampler2D d, vec2 uv, vec2 nf){
+      float c = lin(d, uv, nf);
+      float m = max(max(lin(d, uv + vec2(texel.x, 0.), nf), lin(d, uv - vec2(texel.x, 0.), nf)), max(lin(d, uv + vec2(0., texel.y), nf), lin(d, uv - vec2(0., texel.y), nf))) - c;
+      return smoothstep(0.025, 0.06, m) * (1. - smoothstep(6., 30., c));
+    }
+    void main(){
+      vec3 col = texture2D(tBg, vUv).rgb;
+      col = mix(col, ink, 0.8 * thick(dBg, vUv, nfBg, 25., 160.));
+      // 공기 원근: 배경은 멀수록 옅은 보랏빛 안개에 묻히고 채도가 낮아짐(하늘도 부드럽게)
+      { float raw = texture2D(dBg, vUv).x, sky = step(0.99999, raw), dz = lin(dBg, vUv, nfBg), far = smoothstep(30., 420., dz) * (1. - sky), lb = dot(col, vec3(.299, .587, .114));
+        col = mix(col, vec3(lb), 0.28 * far + 0.12 * sky); col = mix(col, vec3(0.86, 0.80, 0.88), 0.30 * far + 0.14 * sky); }   // 하늘은 약하게만(맑은 파랑 유지)
+      vec4 fg = texture2D(tFg, vUv);
+      // 인물·트럭(앞 장면)은 채도와 밝기를 살짝 올려 배경에서 돋보이게
+      { float lf = dot(fg.rgb, vec3(.299, .587, .114)); fg.rgb = mix(vec3(lf), fg.rgb, 1.12) * 1.04; }
+      vec3 fgc = mix(fg.rgb, ink, 0.9 * max(thick(dFg, vUv, nfFg, 6., 30.), gap(dFg, vUv, nfFg)));
+      float aEdge = fg.a * (1. - min(min(texture2D(tFg, vUv + vec2(texel.x, 0.)).a, texture2D(tFg, vUv - vec2(texel.x, 0.)).a), min(texture2D(tFg, vUv + vec2(0., texel.y)).a, texture2D(tFg, vUv - vec2(0., texel.y)).a)));
+      fgc = mix(fgc, ink, 0.9 * aEdge);
+      col = mix(col, fgc, fg.a);
+      // 색 보정: 어두운 곳 보랏빛, 밝은 곳 종이빛, 검정은 살짝 들어 올림
+      float l = dot(col, vec3(.299, .587, .114));
+      col = mix(col * vec3(0.92, 0.88, 1.12), col * vec3(1.05, 1.0, 0.93), smoothstep(0.08, 0.6, l));
+      col = col * 0.94 + vec3(0.025, 0.02, 0.035);
+      // 대비를 살짝 올리고 밝은 곳은 따뜻하게
+      col = mix(col, col * col * (3. - 2. * col), 0.22);
+      col *= mix(vec3(1.0), vec3(1.04, 1.0, 0.95), smoothstep(0.45, 0.9, l));
+      // 가장자리를 살짝 어둡게 해 시선이 가운데 두 사람에게 모이게
+      { vec2 q = (vUv - vec2(0.5, 0.46)) * vec2(1.1, 0.95); col *= mix(0.8, 1.0, smoothstep(0.78, 0.3, length(q))); }
+      gl_FragColor = vec4(col, 1.);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+  depthTest: false, depthWrite: false,
+});
+const postScene = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
+
+// 움직임: 풀이 바람에 흔들리고, 먼지가 날리고, 카메라가 아주 천천히 숨 쉬듯 움직임
+const clock = new THREE.Clock();
+function tick() {
+  const t = clock.getElapsedTime();
+  FAIRIES.forEach(f => f.userData.update(t));
+  for (const s of PROP_SWAY) { const w = Math.sin(t * s.sp + s.ph) * 0.7 + Math.sin(t * s.sp * 2.3 + s.ph * 1.3) * 0.3; s.o.rotation.z = s.amp * w; s.o.rotation.x = s.amp * 0.35 * Math.sin(t * s.sp * 0.8 + s.ph); }
+  for (let i = 0; i < dustN; i++) {
+    dustArr[i * 3] += 0.012 + Math.sin(t * 0.7 + i) * 0.004;
+    dustArr[i * 3 + 1] += Math.sin(t * 0.9 + i * 1.7) * 0.003;
+    if (dustArr[i * 3] > 20) dustArr[i * 3] = -20;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+  wind.value = t;
+  // 아주 작게 숨 쉬듯 흔들림(바위가 사진 자리에서 거의 벗어나지 않을 만큼)
+  camera.position.set(CAM.x + Math.sin(t * 0.13) * 0.08, CAM.y + Math.sin(t * 0.17) * 0.04, CAM.z);
+  camera.lookAt(LOOK);
+  woman.update(t); man.update(t);
+  renderer.setRenderTarget(rtBg); renderer.render(scene, camera);
+  renderer.setClearColor(0x000000, 0); renderer.setRenderTarget(rtFg); renderer.clear(); renderer.render(truckScene, truckCam);
+  renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+  window.__ready = true;
+  requestAnimationFrame(tick);
+}
+window.__s = { camera, rock, THREE, scene, ROAD_PTS, ROAD2_PTS, rawHeight, truck };
+tick();
+</script>
+</body>
+</html>

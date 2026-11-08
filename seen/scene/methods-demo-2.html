@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>구현 방식 예시 2 — 2w_doridu Archive</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f4f1ec; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+// 구현 방식 예시 2(예시 1보다 디테일): 둥근 모서리 부품으로 깎은 인물(얼굴·머리카락·옷깃·자수·주름 소매·손가락),
+// 결이 있는 기타, 나무 상자, 지층이 굽이치는 디오라마, 바위·덤불 무리·풀. 팔은 2관절 IK로 기타를 침
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color("#f4f1ec");
+const camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(3.2, 2.4, 4.2);
+const controls = new OrbitControls(camera, renderer.domElement); controls.target.set(0.2, 0.75, 0.4); controls.enableDamping = true;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const gtao = new GTAOPass(scene, camera, innerWidth, innerHeight); gtao.blendIntensity = 0.7; composer.addPass(gtao);
+composer.addPass(new OutputPass());
+addEventListener("resize", () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); });
+
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true, ...o });
+const sun = new THREE.DirectionalLight("#fff0dc", 3.2); sun.position.set(-4, 7, 5); sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 4; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 20 });
+scene.add(sun, new THREE.HemisphereLight("#a9c2f0", "#b48d78", 1.25));
+
+// 결정적인 난수
+let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const hash = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
+
+// ── 디오라마: 4.4×4.4 블록, 윗면 높이 지도 + 굽이치는 지층 옆면 + 받침
+const S = 4.4, N = 90, BASE = -0.9;
+const h = (x, z) => 0.22 * Math.sin(x * 1.2 + 0.5) * Math.cos(z * 1.0) + 0.12 * Math.sin(x * 2.9 + z * 2.1) + 0.45 * Math.exp(-((x + 1.3) ** 2 + (z + 1.2) ** 2) * 0.8) + 0.05 * Math.sin(x * 7 + z * 5);
+const pathD = (x, z) => Math.abs(z - (0.9 + 0.35 * Math.sin(x * 1.4)));           // 앞쪽을 가로지르는 흙길
+{
+  const g = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2).toNonIndexed(), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, h(x, z) - 0.04 * Math.max(0, 1 - pathD(x, z) / 0.22)); }
+  g.computeVertexNormals();
+  const col = [], c = new THREE.Color(), n = new THREE.Vector3();
+  const SAND = new THREE.Color("#d2a891"), MAUVE = new THREE.Color("#b88780"), DIRT = new THREE.Color("#e2c4ab"), MOSS = new THREE.Color("#9aa883");
+  for (let i = 0; i < p.count; i += 3) {
+    const cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+    n.fromBufferAttribute(g.attributes.normal, i);
+    c.copy(SAND).lerp(MAUVE, THREE.MathUtils.smoothstep(1 - n.y, 0.05, 0.25)).offsetHSL(0, 0, (hash(cx * 9, cz * 9) - 0.5) * 0.04);
+    if (pathD(cx, cz) < 0.2) c.copy(DIRT).offsetHSL(0, 0, (hash(cx * 5, cz * 7) - 0.5) * 0.03);
+    else if (Math.sin(cx * 2.3) * Math.cos(cz * 1.7) > 0.55) c.lerp(MOSS, 0.5);
+    for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b);
+  }
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  const top = new THREE.Mesh(g, mat("#fff", { vertexColors: true })); top.receiveShadow = top.castShadow = true; scene.add(top);
+  // 옆면 지층: 경계선이 서로 다른 물결로 굽이치는 6겹
+  const bands = ["#6f4f45", "#9a6e5e", "#835c50", "#b88b74", "#a1735f", "#c69c84"].map(cc => mat(cc, { side: THREE.DoubleSide }));
+  const edge = (t, b, ytop) => b === 6 ? ytop : BASE + (ytop - BASE) * (b / 6) + 0.06 * Math.sin(t * (2.1 + b * 0.7) + b * 1.7) + 0.03 * Math.sin(t * 7.3 + b);
+  for (const [ax, az, sx, sz] of [[-S / 2, S / 2, 1, 0], [S / 2, -S / 2, -1, 0], [-S / 2, -S / 2, 0, 1], [S / 2, S / 2, 0, -1]]) {
+    for (let b = 0; b < 6; b++) {
+      const pos = [];
+      for (let i = 0; i <= N; i++) { const t = (i / N) * S, x = ax + sx * t, z = az + sz * t, yt = h(x, z); pos.push(x, Math.min(edge(t, b, yt), yt), z, x, Math.min(edge(t, b + 1, yt), yt), z); }
+      const idx = []; for (let i = 0; i < N; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+      const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); sg.setIndex(idx); sg.computeVertexNormals();
+      scene.add(new THREE.Mesh(sg, bands[b]));
+    }
+  }
+  const plinth = new THREE.Mesh(new RoundedBoxGeometry(S + 0.3, 0.22, S + 0.3, 3, 0.06), mat("#efe7da", { flatShading: false })); plinth.position.y = BASE - 0.11; plinth.receiveShadow = true; scene.add(plinth);
+}
+
+// 꼭짓점을 흔들어 깎은 돌처럼
+function jitter(geo, a) { const p = geo.attributes.position; for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (1 + (rnd() - 0.5) * a), p.getY(i) * (1 + (rnd() - 0.5) * a), p.getZ(i) * (1 + (rnd() - 0.5) * a)); geo.computeVertexNormals(); return geo; }
+// 바위
+for (const [x, z, r, sy] of [[-1.6, -0.4, 0.28, 0.7], [-1.35, -0.2, 0.16, 0.8], [1.7, 0.2, 0.22, 0.6], [1.2, -1.6, 0.34, 0.9], [-0.6, 1.8, 0.14, 0.7]]) {
+  const m = new THREE.Mesh(jitter(new THREE.DodecahedronGeometry(r, 0), 0.25), mat(["#a98479", "#94716a", "#b8938a"][Math.floor(rnd() * 3)]));
+  m.position.set(x, h(x, z) + r * sy * 0.4, z); m.scale.y = sy; m.rotation.y = rnd() * 6; m.castShadow = m.receiveShadow = true; scene.add(m);
+}
+// 덤불 무리: 크기가 다른 덩어리 3~5개, 회녹색 계열에 아래쪽 그늘
+function bush(x, z, r) {
+  const n = 3 + Math.floor(rnd() * 3), base = new THREE.Color(["#7f9b78", "#8aa38c", "#6f8f7c", "#93a57e"][Math.floor(rnd() * 4)]);
+  for (let k = 0; k < n; k++) {
+    const rr = r * (0.55 + rnd() * 0.5), ox = (rnd() - 0.5) * r * 1.4, oz = (rnd() - 0.5) * r * 1.4;
+    const g = new THREE.IcosahedronGeometry(rr, 1), p = g.attributes.position, col = [];
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(p, i); v.multiplyScalar(1 + 0.16 * Math.sin(v.x * 23 + k) * Math.cos(v.z * 19 + v.y * 11)); v.y *= 0.8; p.setXYZ(i, v.x, v.y, v.z);
+      const ao = 0.55 + 0.45 * THREE.MathUtils.clamp((v.y / rr + 0.8) / 1.6, 0, 1); col.push(base.r * ao, base.g * ao, base.b * ao);
+    }
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, mat("#fff", { vertexColors: true, roughness: 0.9 })); m.position.set(x + ox, h(x + ox, z + oz) + rr * 0.5, z + oz); m.castShadow = m.receiveShadow = true; scene.add(m);
+  }
+}
+for (const [x, z, r] of [[-1.5, 1.3, 0.26], [1.5, -0.9, 0.3], [-1.7, -1.6, 0.22], [1.6, 1.7, 0.2], [0.4, -1.7, 0.24], [-0.3, -1.1, 0.16]]) bush(x, z, r);
+// 풀포기: 가는 잎 7장을 부채꼴로
+const tuft = (() => { const parts = []; for (let k = 0; k < 7; k++) { const b = new THREE.ConeGeometry(0.012, 0.16 + (k % 2) * 0.06, 3).translate(0, 0.09, 0); b.rotateZ((k - 3) * 0.2); b.rotateY(k * 0.9); parts.push(b); } return parts; })();
+for (let i = 0; i < 40; i++) {
+  const x = (rnd() - 0.5) * S * 0.9, z = (rnd() - 0.5) * S * 0.9; if (pathD(x, z) < 0.3) continue;
+  const g = new THREE.Group(); for (const b of tuft) { const m = new THREE.Mesh(b, mat(["#b6a86c", "#a3a370", "#c4ad78"][i % 3])); m.castShadow = true; g.add(m); }
+  g.position.set(x, h(x, z), z); g.scale.setScalar(0.8 + rnd() * 0.6); scene.add(g);
+}
+
+// ── 인물: 둥근 모서리 부품으로 깎은 앉은 기타 연주자(하늘색 새틴 정장, 금색 자수, 크림 주름 블라우스·소매, 나팔바지, 보터 모자)
+const M = {
+  suit: mat("#a9cbe8", { roughness: 0.35, metalness: 0.05 }), suitDark: mat("#8fb3d3", { roughness: 0.4 }), gold: mat("#d4af5a", { roughness: 0.35, metalness: 0.4 }),
+  cream: mat("#f3dcc4", { roughness: 0.6 }), skin: mat("#f1c8a8", { roughness: 0.65 }), skinDark: mat("#d9a888"), hair: mat("#2b2220", { roughness: 0.7 }),
+  hat: mat("#eee3c8", { roughness: 0.85 }), band: mat("#c9b089"), shoe: mat("#1e1c1c", { roughness: 0.4 }), sole: mat("#3b3634"), eye: mat("#1c1715"),
+  wood: mat("#cc9358", { roughness: 0.5 }), woodTop: mat("#e2b47a", { roughness: 0.5 }), woodDark: mat("#4e3020"), metal: mat("#c8c6c0", { metalness: 0.7, roughness: 0.3 }), crate: mat("#a8835a"),
+};
+const rig = new THREE.Group(); rig.position.set(0.2, h(0.2, 0.3), 0.3); rig.rotation.y = 0.35; scene.add(rig);
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const rbox = (w, hh, d, m, r = 0.02, parent = rig) => { const o = new THREE.Mesh(new RoundedBoxGeometry(w, hh, d, 2, Math.min(r, w / 2, hh / 2, d / 2)), m); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+const mesh = (geo, m, parent = rig) => { const o = new THREE.Mesh(geo, m); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+// 두 점 사이에 부품을 놓음(길이 방향으로 늘림)
+function between(o, a, b) { o.position.copy(a).add(b).multiplyScalar(0.5); o.scale.y = a.distanceTo(b); o.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize()); }
+// 2관절 IK
+function ik(root, target, L1, L2, pole) {
+  const d = target.clone().sub(root), dist = Math.min(d.length(), L1 + L2 - 1e-3), dir = d.normalize();
+  const a = Math.acos(THREE.MathUtils.clamp((L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist), -1, 1));
+  const side = pole.clone().sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
+  return root.clone().add(dir.clone().multiplyScalar(Math.cos(a) * L1)).add(side.multiplyScalar(Math.sin(a) * L1));
+}
+
+// 나무 상자(널빤지 4장 + 모서리 각목)
+{
+  for (let i = 0; i < 4; i++) { const b = rbox(0.52, 0.07, 0.4, M.crate, 0.008); b.position.set(0, 0.04 + i * 0.075, -0.06); b.material = mat(i % 2 ? "#a8835a" : "#b38e63"); }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) rbox(0.05, 0.31, 0.05, mat("#8a6844"), 0.008).position.set(sx * 0.24, 0.155, -0.06 + sz * 0.18);
+}
+const HIP = 0.36;
+// 골반·다리: 허벅지 앞으로, 무릎 아래 나팔바지가 아래로 넓어짐(앞 주름선), 구두
+rbox(0.34, 0.14, 0.26, M.suit, 0.05).position.set(0, HIP, 0);
+for (const s of [-1, 1]) {
+  const hp = V(s * 0.09, HIP, 0.02), kn = V(s * 0.1, HIP + 0.01, 0.36), ft = V(s * 0.12, 0.05, 0.42);
+  between(rbox(0.15, 1, 0.16, M.suit, 0.05), hp, kn);
+  const shin = mesh(new THREE.CylinderGeometry(0.072, 0.115, 1, 8), M.suit); between(shin, kn, ft);
+  mesh(new THREE.SphereGeometry(0.078, 10, 8), M.suit).position.copy(kn);                 // 무릎 마디
+  const crease = rbox(0.008, 1, 0.008, M.suitDark, 0.003); between(crease, kn.clone().add(V(0, 0, 0.065)), ft.clone().add(V(0, 0.04, 0.11)));
+  const shoe = rbox(0.11, 0.07, 0.24, M.shoe, 0.03); shoe.position.set(s * 0.12, 0.045, 0.47);
+  rbox(0.115, 0.02, 0.25, M.sole, 0.008).position.set(s * 0.12, 0.012, 0.47);
+}
+// 몸통: 재킷(허리가 들어간 사다리꼴), 앞섶 크림 주름, 금색 테두리, 어깨 금색 매듭 자수
+const chest = new RoundedBoxGeometry(0.38, 0.46, 0.24, 3, 0.06);
+{ const p = chest.attributes.position; for (let i = 0; i < p.count; i++) { const t = (p.getY(i) + 0.23) / 0.46; p.setX(i, p.getX(i) * (0.82 + 0.25 * t)); } chest.computeVertexNormals(); }
+mesh(chest, M.suit).position.set(0, HIP + 0.3, 0);
+for (let i = 0; i < 5; i++) { const r = rbox(0.13 - i * 0.012, 0.035, 0.05, M.cream, 0.015); r.position.set(0, HIP + 0.47 - i * 0.055, 0.125 + i * 0.002); r.rotation.x = 0.35; }
+for (const s of [-1, 1]) {
+  const lap = rbox(0.06, 0.3, 0.02, M.suit, 0.01); lap.position.set(s * 0.085, HIP + 0.38, 0.122); lap.rotation.z = s * 0.28;   // 옷깃
+  const trim = rbox(0.012, 0.42, 0.012, M.gold, 0.005); trim.position.set(s * 0.07, HIP + 0.28, 0.128); trim.rotation.z = s * 0.12; // 앞섶 금색 테
+  for (let k = 0; k < 3; k++) { const kn = mesh(new THREE.TorusGeometry(0.022, 0.007, 4, 10), M.gold); kn.position.set(s * (0.13 + k * 0.02), HIP + 0.5 - k * 0.04, 0.09 - k * 0.02); kn.rotation.y = s * 0.6; } // 어깨 매듭
+  for (let k = 0; k < 3; k++) { const f = mesh(new THREE.IcosahedronGeometry(0.013, 0), M.cream); f.position.set(s * (0.1 + k * 0.025), HIP + 0.36 - k * 0.07, 0.125); } // 작은 꽃
+  rbox(0.12, 0.1, 0.2, M.suit, 0.045).position.set(s * 0.2, HIP + 0.5, 0);           // 어깨
+}
+rbox(0.36, 0.02, 0.24, M.gold, 0.008).position.set(0, HIP + 0.08, 0);                  // 재킷 밑단 금색 테
+// 목·머리·얼굴(눈썹·감은 듯한 눈·코·노래하는 입·귀)·곱슬머리·보터 모자
+const head = new THREE.Group(); head.position.set(0, HIP + 0.62, 0.01); rig.add(head);
+mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.1, 8), M.skin).position.set(0, HIP + 0.55, 0);
+rbox(0.19, 0.23, 0.2, M.skin, 0.06, head);
+const jaw = rbox(0.15, 0.06, 0.15, M.skin, 0.03, head); jaw.position.set(0, -0.1, 0.015);
+for (const s of [-1, 1]) {
+  rbox(0.04, 0.012, 0.01, M.hair, 0.004, head).position.set(s * 0.045, 0.045, 0.1);       // 눈썹
+  rbox(0.03, 0.01, 0.01, M.eye, 0.004, head).position.set(s * 0.045, 0.015, 0.101);        // 눈
+  rbox(0.025, 0.05, 0.035, M.skinDark, 0.01, head).position.set(s * 0.1, 0, 0);           // 귀
+}
+const nose = mesh(new THREE.ConeGeometry(0.018, 0.05, 4), M.skinDark, head); nose.position.set(0, -0.015, 0.11); nose.rotation.x = Math.PI / 2 + 0.3;
+const mouth = rbox(0.035, 0.018, 0.01, mat("#7a3a34"), 0.006, head); mouth.position.set(0, -0.065, 0.1);
+rbox(0.21, 0.07, 0.21, M.hair, 0.03, head).position.set(0, 0.1, -0.01);
+for (let k = 0; k < 14; k++) {                                                                // 곱슬 머리 덩어리
+  const a = (k / 14) * Math.PI * 1.6 + Math.PI * 0.7, r = 0.11;
+  const c = mesh(new THREE.IcosahedronGeometry(0.045 + rnd() * 0.02, 0), M.hair, head); c.position.set(Math.cos(a) * r, -0.02 + rnd() * 0.1, Math.sin(a) * r * 0.9 - 0.02);
+}
+mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.014, 24), M.hat, head).position.set(0, 0.13, 0);
+mesh(new THREE.CylinderGeometry(0.115, 0.12, 0.1, 20), M.hat, head).position.set(0, 0.185, 0);
+mesh(new THREE.CylinderGeometry(0.122, 0.122, 0.025, 20), M.band, head).position.set(0, 0.15, 0);
+// 기타: 8자 몸통(두 원을 이은 윤곽을 두께 있게), 밝은 앞판, 사운드홀 테, 브리지, 지판, 헤드, 줄감개, 줄 6가닥
+const guitar = new THREE.Group(); guitar.position.set(-0.04, HIP + 0.22, 0.27); guitar.rotation.set(0.08, -0.1, -1.15); rig.add(guitar);
+{
+  const sh = new THREE.Shape(); sh.absarc(0, -0.08, 0.17, Math.PI * 0.62, Math.PI * 2.38, false); sh.absarc(0, 0.14, 0.13, -Math.PI * 0.32, Math.PI * 1.32, false);
+  const body = mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 2, curveSegments: 14 }).translate(0, 0, -0.04), M.wood, guitar);
+  const topG = mesh(new THREE.ShapeGeometry(sh, 14), M.woodTop, guitar); topG.position.z = 0.051;
+  const ring = mesh(new THREE.RingGeometry(0.045, 0.058, 20), M.woodDark, guitar); ring.position.set(0, 0.03, 0.052);
+  const hole = mesh(new THREE.CircleGeometry(0.045, 20), mat("#1d130d"), guitar); hole.position.set(0, 0.03, 0.053);
+  rbox(0.14, 0.025, 0.012, M.woodDark, 0.005, guitar).position.set(0, -0.14, 0.057);
+  rbox(0.05, 0.5, 0.03, M.woodDark, 0.008, guitar).position.set(0, 0.5, 0.025);
+  for (let f = 1; f < 9; f++) rbox(0.05, 0.004, 0.004, M.metal, 0.001, guitar).position.set(0, 0.29 + f * 0.05, 0.042);
+  rbox(0.08, 0.13, 0.025, M.woodDark, 0.01, guitar).position.set(0, 0.81, 0.02);
+  for (let k = 0; k < 6; k++) { const s = k < 3 ? -1 : 1, peg = mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.03, 6), M.metal, guitar); peg.position.set(s * 0.05, 0.77 + (k % 3) * 0.035, 0.02); peg.rotation.z = Math.PI / 2; }
+  for (let k = 0; k < 6; k++) rbox(0.0025, 0.86, 0.0025, M.metal, 0.001, guitar).position.set(-0.0125 + k * 0.005, 0.33, 0.06);
+}
+// 팔: 위팔·아래팔(재킷 소매), 크림 주름 소맷부리 3겹, 손바닥·손가락 4개·엄지
+function makeArm() {
+  const up = mesh(new THREE.CylinderGeometry(0.052, 0.058, 1, 8), M.suit), lo = mesh(new THREE.CylinderGeometry(0.046, 0.052, 1, 8), M.suit);
+  const elbow = mesh(new THREE.SphereGeometry(0.054, 10, 8), M.suit);
+  const cuffs = [0, 1, 2].map(i => mesh(new THREE.CylinderGeometry(0.05 + i * 0.012, 0.072 + i * 0.014, 0.035, 9, 1, true), M.cream));
+  cuffs.forEach(c => c.material = mat("#f3dcc4", { side: THREE.DoubleSide, roughness: 0.6 }));
+  const hand = new THREE.Group(); rig.add(hand);
+  rbox(0.07, 0.08, 0.035, M.skin, 0.015, hand).position.set(0, -0.04, 0);
+  for (let f = 0; f < 4; f++) rbox(0.015, 0.05, 0.018, M.skin, 0.007, hand).position.set(-0.024 + f * 0.016, -0.1, 0.008);
+  const th = rbox(0.016, 0.045, 0.018, M.skin, 0.007, hand); th.position.set(0.038, -0.05, 0.015); th.rotation.z = -0.6;
+  return { up, lo, cuffs, hand, elbow };
+}
+const arms = [makeArm(), makeArm()];
+function poseArm(A, sh, target, pole) {
+  const el = ik(sh, target, 0.27, 0.25, pole); between(A.up, sh, el); A.elbow.position.copy(el);
+  const dir = target.clone().sub(el).normalize(), wrist = target.clone().addScaledVector(dir, -0.04);
+  between(A.lo, el, wrist);
+  A.cuffs.forEach((c, i) => { c.position.copy(wrist).addScaledVector(dir, -0.02 + i * 0.02); c.quaternion.setFromUnitVectors(V(0, 1, 0), dir); });
+  A.hand.position.copy(wrist); A.hand.quaternion.setFromUnitVectors(V(0, -1, 0), dir);
+}
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const t = clock.getElapsedTime(), strum = Math.sin(t * 7);
+  // 오른손: 사운드홀 앞에서 줄을 튕김. 왼손: 기타 목에서 코드를 바꾸듯 조금씩 옮겨 다님
+  guitar.updateMatrix();
+  const onGuitar = (x, y, z) => V(x, y, z).applyMatrix4(guitar.matrix);
+  // 오른팔은 몸통 위쪽 모서리 너머로 내려와 앞판 바로 앞에서 줄을 튕김(팔꿈치는 위·뒤·바깥)
+  poseArm(arms[0], V(-0.2, HIP + 0.48, 0), onGuitar(0.03 * strum, -0.04, 0.12), V(-0.5, 0.8, -0.4));
+  // 왼손은 지판 앞에서 코드를 바꿈(팔꿈치는 아래·바깥)
+  const chord = Math.floor(t * 0.8) % 3;
+  poseArm(arms[1], V(0.2, HIP + 0.48, 0), onGuitar(0, 0.4 + chord * 0.07, 0.1), V(0.7, -0.7, -0.1));
+  head.rotation.z = 0.05 * Math.sin(t * 2.2); head.rotation.x = -0.08 + 0.03 * Math.sin(t * 4.4);
+  mouth.scale.y = 1 + 0.6 * Math.max(0, Math.sin(t * 3.1));
+  controls.update(); composer.render();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 완성 전까지 검색 결과에 안 나오게 막아 둔다. 공개할 때 아래 robots 태그를 지운다 -->
+<meta name="robots" content="noindex">
+<title>관람 기록 — 2w_doridu Archive</title>
+<link rel="icon" href="../icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="stylesheet" href="../style.css?v=20261102-1">
+<style>
+  .detail__media img { aspect-ratio: 3 / 4; object-fit: cover; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="bar__name" href="../index.html">2w_doridu</a>
+  <nav class="bar__links">
+    <a href="../studio.html">작업실</a>
+    <a href="../info.html">정보</a>
+    <button type="button" class="bar__close detail__close">닫기 ×</button>
+  </nav>
+</header>
+
+<main class="detail" id="post"></main>
+<nav class="pager"></nav>
+
+<script src="data.js?v=20261108-1"></script>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+const i = Math.max(0, SEEN.findIndex(s => s.id === id));
+const s = SEEN[i];
+const prev = SEEN[i - 1], next = SEEN[i + 1];
+document.title = `${s.title} — 2w_doridu Archive`;
+document.getElementById("post").innerHTML = `
+  <div class="detail__media"><div class="detail__frame"><img src="${s.img}" alt="${s.title}"></div></div>
+  <div class="detail__side info">
+    <h1 class="detail__title">${s.title}</h1>
+    <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
+    <p class="info__line--muted">${s.date}</p>
+  </div>`;
+
+// 닫기: 목록에서 넘어왔으면 이전 화면으로, 링크로 바로 들어왔으면 목록으로 간다
+document.querySelector(".detail__close").addEventListener("click", () => {
+  const fromSite = document.referrer && new URL(document.referrer).origin === location.origin;
+  if (fromSite && history.length > 1) history.back();
+  else location.href = "index.html";
+});
+addEventListener("keydown", e => {
+  if (e.key === "Escape") document.querySelector(".detail__close").click();
+  if (e.key === "ArrowLeft" && prev) location.replace(`detail.html?id=${prev.id}`);
+  if (e.key === "ArrowRight" && next) location.replace(`detail.html?id=${next.id}`);
+});
+
+document.querySelector(".pager").innerHTML =
+  (prev ? `<a class="pill" href="detail.html?id=${prev.id}">← 이전</a>` : "<span></span>") +
+  (next ? `<a class="pill" href="detail.html?id=${next.id}">다음 →</a>` : "");
+</script>
+</body>
+</html>
