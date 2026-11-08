@@ -12,6 +12,9 @@
 <link rel="stylesheet" href="../style.css?v=20261102-1">
 <style>
   .detail__media img { aspect-ratio: 3 / 4; object-fit: cover; }
+  /* 3D 장면 항목: 화면 높이에 맞춘 3:4 틀에 장면을 띄움 */
+  .detail__frame:has(.detail__scene) { width: min(100%, calc((100vh - 120px) * 0.75)); }
+  .detail__scene { display: block; width: 100%; aspect-ratio: 3 / 4; border: 0; border-radius: var(--radius); pointer-events: none; }
 </style>
 </head>
 <body>
@@ -27,7 +30,7 @@
 <main class="detail" id="post"></main>
 <nav class="pager"></nav>
 
-<script src="data.js?v=20261108-1"></script>
+<script src="data.js?v=20261108-3"></script>
 <script>
 const id = new URLSearchParams(location.search).get("id");
 const i = Math.max(0, SEEN.findIndex(s => s.id === id));
@@ -35,12 +38,24 @@ const s = SEEN[i];
 const prev = SEEN[i - 1], next = SEEN[i + 1];
 document.title = `${s.title} — 2w_doridu Archive`;
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame"><img src="${s.img}" alt="${s.title}"></div></div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed" title="${s.title}"></iframe>` : `<img src="${s.img}" alt="${s.title}">`}</div></div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
     <p class="info__line--muted">${s.date}</p>
   </div>`;
+
+// 장면 틀은 그대로 두고, 마우스 위치(틀 가운데 기준 -1~1)를 장면에 보내 보는 각도를 바꾼다
+const scene = document.querySelector(".detail__scene");
+if (scene) {
+  const send = (x, y) => scene.contentWindow.postMessage({ type: "tilt", x, y }, location.origin);
+  const clamp = v => Math.max(-1, Math.min(1, v));
+  addEventListener("mousemove", e => {
+    const r = scene.getBoundingClientRect();
+    send(clamp((e.clientX - r.left - r.width / 2) / (r.width / 2)), clamp((e.clientY - r.top - r.height / 2) / (r.height / 2)));
+  });
+  document.documentElement.addEventListener("mouseleave", () => send(0, 0));
+}
 
 // 닫기: 목록에서 넘어왔으면 이전 화면으로, 링크로 바로 들어왔으면 목록으로 간다
 document.querySelector(".detail__close").addEventListener("click", () => {

@@ -11,7 +11,11 @@
   body { display: grid; place-items: center; }
   /* 3:4 화면을 창 안에 꽉 차게 맞춘다 */
   canvas { display: block; width: min(100vw, 75vh); height: auto; aspect-ratio: 3 / 4; }
+  /* 관람 기록 목록·상세 안에 들어갈 때(?embed): 틀을 꽉 채우고 배경 없음 */
+  html.embed, html.embed body { background: transparent; }
+  html.embed canvas { width: 100%; height: 100%; }
 </style>
+<script>if (new URLSearchParams(location.search).has("embed")) document.documentElement.classList.add("embed");</script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
@@ -321,12 +325,21 @@ let TUFT, GRASS_MAT;
   plantGrass(ground);
 }
 // 풀 포기를 주어진 자리마다 심음
-function plantGrass(points, size = 1) {
-  const im = new THREE.InstancedMesh(TUFT, GRASS_MAT, points.length);
+// 가려지는 관계만 따로 정하기: 깊이값을 실제 거리의 1/k 로 계산해 씀(움직임은 실제 자리 기준)
+function depthAs(material, k) {
+  if (k === 1) return material;
+  const m = material.clone();
+  m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace("#include <project_vertex>", `#include <project_vertex>
+  gl_Position.z = projectionMatrix[2][2] * mvPosition.z + projectionMatrix[3][2] * ${k.toFixed(4)};`); };
+  m.customProgramCacheKey = () => "depthAs" + k;
+  return m;
+}
+function plantGrass(points, size = 1, scales, dq = 1) {
+  const im = new THREE.InstancedMesh(TUFT, depthAs(GRASS_MAT, dq), points.length);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
   const tones = ["#9fae6c", "#8aa36a", "#b4b277"].map(c => new THREE.Color(c));
   points.forEach((v, i) => {
-    const k = (0.8 + rnd() * 0.5) * size;
+    const k = (0.8 + rnd() * 0.5) * size * (scales ? scales[i] : 1);
     q.setFromEuler(new THREE.Euler(0, rnd() * 6.28, 0));
     m.compose(v, q, sc.set(k, k, k));
     im.setMatrixAt(i, m); im.setColorAt(i, tones[Math.floor(rnd() * tones.length)]);
@@ -353,24 +366,37 @@ function jitter(geo, amt, edge = 0) {
 const SLAB = [[-40, 1440], [0, 1430], [260, 1370], [330, 1362], [400, 1335], [490, 1338], [600, 1232], [640, 1230], [710, 1170], [800, 1105], [880, 1078], [940, 1040],
   [1000, 1012], [1045, 1010], [1060, 1028], [1130, 1045], [1210, 1088], [1268, 1045], [1300, 1040], [1330, 1062], [1374, 1110], [1420, 1130], [1420, 1692], [-40, 1692]];
 // 2번 바위: 왼쪽에서 오른쪽 아래로 비스듬히 내려오는 층층 판. 끝이 1번 바위와 떨어져 사이로 땅이 보임
-const LEDGE = [[-40, 1100], [0, 1100], [80, 1130], [180, 1180], [280, 1228], [360, 1262], [400, 1290], [372, 1330], [260, 1370], [120, 1420], [0, 1460], [-40, 1460]];
+// 처음 찍은 윤곽. 풀 심는 자리 계산은 이것을 따름(풀 개수·배치 순서 유지)
+const LEDGE0 = [[-40, 1100], [0, 1100], [80, 1130], [180, 1180], [280, 1228], [360, 1262], [400, 1290], [372, 1330], [260, 1370], [120, 1420], [0, 1460], [-40, 1460]];
+// 2번 바위 모양: 왼쪽은 화면 밖까지, 윗선은 완만하게 솟고 꺼지는 둔덕
+const LEDGE = [[-400, 1094], [-60, 1090], [0, 1092], [22, 1099], [44, 1109], [66, 1118], [88, 1125], [110, 1136], [132, 1156], [154, 1175], [176, 1186], [198, 1193], [220, 1204], [242, 1215], [264, 1219], [286, 1220], [308, 1227], [330, 1242], [352, 1256], [374, 1268], [396, 1280], [410, 1300], [402, 1318], [372, 1332], [260, 1370], [120, 1420], [0, 1460], [-400, 1460]];
 // 2번 바위 위에 얹힌 짙은 바위 무리
-const LEDGE_TOP = [[-40, 1160], [0, 1062], [100, 1040], [200, 1048], [300, 1065], [332, 1100], [300, 1130], [200, 1150], [80, 1152], [-40, 1165]];
+const R3DX = -50;   // 3번 바위를 처음 자리보다 옮긴 양(사진 픽셀, 음수는 왼쪽)
+const LEDGE_TOP0 = [[-40 + R3DX, 1160], [0 + R3DX, 1062], [100 + R3DX, 1040], [200 + R3DX, 1048], [300 + R3DX, 1065], [332 + R3DX, 1100], [300 + R3DX, 1130], [200 + R3DX, 1150], [80 + R3DX, 1152], [-40 + R3DX, 1165]];
+// 3번 바위 모양: 꼭대기는 그대로, 오른쪽 옆면이 2번 바위 뒤로 비탈져 내려가 바닥까지 이어짐
+const LEDGE_TOP = [[-400, 1100], [-60 + R3DX, 1080], [0 + R3DX, 1062], [100 + R3DX, 1040], [200 + R3DX, 1048], [300 + R3DX, 1065], [332 + R3DX, 1100], [350 + R3DX, 1150], [372 + R3DX, 1210], [396 + R3DX, 1268], [420 + R3DX, 1340], [440 + R3DX, PH_H], [-400, PH_H]];
 const ROCK_TONES = ["#8c7270", "#a88d86", "#74605e", "#b39890", "#7f6664"].map(c => new THREE.Color(c));
 const CRACK = new THREE.Color("#45363a"), SUNLIT = new THREE.Color("#e2c1ae"), LICHEN = new THREE.Color("#8e9c84");
 const rockTops = [];
-function photoRock(outline, planeZ, depth, layered = false, tones = ROCK_TONES) {
+const TOP_DROP = 0.9;
+// k: 처음 자리보다 몇 배 멀리 보냈는지. 멀리 보낸 만큼 두께·굴곡·무늬를 같이 키워 화면에서 같은 모양으로 보이게 함
+// q: 가려지는 관계를 정할 때 쓰는 거리 = 실제 거리 / q. 뒤로 보낸 바위를 땅이 가리지 않게 1번 바위 바로 뒤 거리로 둠
+// ridge: 풀 심을 자리를 정할 윤곽(따로 주면 풀의 높이는 실제 윗선에 맞춤)
+function photoRock(outline, planeZ, depth, layered = false, tones = ROCK_TONES, k = 1, q = 1, ridge = null) {
   camera.updateMatrixWorld();
   const rc = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -planeZ), hit = new THREE.Vector3();
-  const pts = outline.map(([px, py]) => {
+  const proj = o => o.map(([px, py]) => {
     rc.setFromCamera(new THREE.Vector2(px / PH_W * 2 - 1, 1 - py / PH_H * 2), camera);
     rc.ray.intersectPlane(plane, hit);
     // 화면 맨 아래 점은 땅속까지 내림
     return new THREE.Vector2(hit.x, py >= PH_H ? -4 : hit.y);
   });
-  for (let i = 1; i < pts.length - 1; i++) if (outline[i][1] < PH_H && outline[i + 1][1] < PH_H) rockTops.push([pts[i], pts[i + 1], planeZ, depth]);
+  const pts = proj(outline), ro = ridge || outline, rp = ridge ? proj(ridge) : pts;
+  // 실제 윤곽에서 x 자리의 가장 높은 y
+  const topY = ridge ? x => { let best = -Infinity; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; if ((x - a.x) * (x - b.x) <= 0 && a.x !== b.x) best = Math.max(best, a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x)); } return best; } : null;
+  for (let i = 1; i < rp.length - 1; i++) if (ro[i][1] < PH_H && ro[i + 1][1] < PH_H) rockTops.push([rp[i], rp[i + 1], planeZ, depth, k, q, topY]);
   // 모서리를 둥글게 깎아 덩어리감을 줌
-  let geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth, bevelEnabled: true, bevelThickness: 0.5, bevelSize: 0.25, bevelSegments: 2, steps: 3, curveSegments: 1 }).translate(0, 0, planeZ - depth);
+  let geo = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth, bevelEnabled: true, bevelThickness: 0.5 * k, bevelSize: 0.25 * k, bevelSegments: 4, steps: 3, curveSegments: 1 }).translate(0, 0, planeZ - depth);
   // 뒤쪽 꼭짓점을 카메라 시선 방향으로 밀어, 카메라에서 볼 때 앞면과 뒷면 윤곽이 겹치게 함(윤곽이 그림과 똑같이 보임)
   {
     const cam = camera.position, gp = geo.attributes.position, v = new THREE.Vector3();
@@ -378,33 +404,36 @@ function photoRock(outline, planeZ, depth, layered = false, tones = ROCK_TONES) 
       v.set(gp.getX(i), gp.getY(i), planeZ);
       const t = (cam.z - gp.getZ(i)) / (cam.z - planeZ);
       v.sub(cam).multiplyScalar(t).add(cam);
+      // 뒤로 갈수록 아래로 내려 윗면이 둥글게 뒤로 넘어가게 함(정면에서는 앞 모서리에 가려 그대로, 위에서 보면 판판한 띠 대신 둥근 등)
+      const f = Math.min(1, Math.max(0, (planeZ - gp.getZ(i)) / depth));
+      v.y -= TOP_DROP * k * Math.sqrt(f);
       gp.setXYZ(i, v.x, v.y, v.z);
     }
   }
   // 큰 삼각형으로 나눈 뒤, 꼭짓점을 카메라 시선 방향으로만 앞뒤로 밀어 굴곡을 만듦(화면 윤곽은 변하지 않음).
   // 세로로 긴 결이 생기도록 가로로 촘촘하고 세로로 느린 무늬를 씀
   geo.deleteAttribute("normal"); geo.deleteAttribute("uv");
-  geo = BufferUtils.mergeVertices(new TessellateModifier(layered ? 1.1 : 0.6, 10).modify(geo.index ? geo.toNonIndexed() : geo));
+  geo = BufferUtils.mergeVertices(new TessellateModifier((layered ? 1.1 : 0.6) * k, 10).modify(geo.index ? geo.toNonIndexed() : geo));
   {
     const cam = camera.position, gp = geo.attributes.position, v = new THREE.Vector3(), dir = new THREE.Vector3();
     for (let i = 0; i < gp.count; i++) {
       v.fromBufferAttribute(gp, i);
-      const bump = (layered ? fbm(v.x * 0.15, v.y * 1.4) : fbm(v.x * 1.1, v.y * 0.18)) - 0.5, fine = layered ? 0 : (fbm(v.x * 3.2, v.y * 2.6) - 0.5) * 0.35;
+      const ux = v.x / k, uy = v.y / k, bump = (layered ? fbm(ux * 0.15, uy * 1.4) : fbm(ux * 1.1, uy * 0.18)) - 0.5, fine = layered ? 0 : (fbm(ux * 3.2, uy * 2.6) - 0.5) * 0.35;
       dir.copy(v).sub(cam).normalize();
-      v.addScaledVector(dir, bump * 1.6 + fine);
+      v.addScaledVector(dir, (bump * 1.6 + fine) * k);
       gp.setXYZ(i, v.x, v.y, v.z);
     }
   }
   geo.computeVertexNormals();
   const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i);
+    const y = p.getY(i) / k;   // 무늬도 키운 만큼 넓게
     // 바위마다 기본 한 색. layered 바위만 층마다 아주 조금 밝기가 달라짐
     c.copy(tones[0]);
     if (layered) c.lerp(tones[3], (Math.floor(y / 0.35) % 2) * 0.35);
     else {
       // 앞 바위: 비스듬한 결무늬 띠, 위를 향한 면은 햇빛에 바랜 밝은 모래색, 갈라진 금은 짙게, 군데군데 이끼(회녹색)
-      const x = p.getX(i), ny = geo.attributes.normal.getY(i), s = fbm(x * 0.07 + y * 0.03, y * 0.75);
+      const x = p.getX(i) / k, ny = geo.attributes.normal.getY(i), s = fbm(x * 0.07 + y * 0.03, y * 0.75);
       c.lerp(tones[Math.min(tones.length - 1, 2)], Math.max(0, s - 0.45) * 0.9);
       c.lerp(SUNLIT, Math.max(0, ny) * 0.32);
       if (Math.abs(fbm(x * 0.55 + 3, y * 0.22) - 0.5) < 0.022) c.lerp(CRACK, 0.55);
@@ -413,14 +442,16 @@ function photoRock(outline, planeZ, depth, layered = false, tones = ROCK_TONES) 
     col.set([c.r, c.g, c.b], i * 3);
   }
   geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  const mesh = new THREE.Mesh(geo, mat("#ffffff", { vertexColors: true }));
+  const mesh = new THREE.Mesh(geo, depthAs(mat("#ffffff", { vertexColors: true }), q));
   mesh.castShadow = mesh.receiveShadow = true;
   scene.add(mesh);
   return mesh;
 }
 // 2번 바위는 1번보다 뒤에 두고 색도 더 밝은 회분홍으로 해 따로 떨어진 바위로 읽히게 함
-photoRock(LEDGE, 22, 3, true, ["#b8a2a0", "#c7b2ad", "#a99391", "#d1beb8", "#b29b98"].map(c => new THREE.Color(c)));
-photoRock(LEDGE_TOP, 18, 3, false, ["#5f4e56", "#6c5a60", "#54454d"].map(c => new THREE.Color(c)));
+// 바위 사이 거리: 카메라(z 44)에서 1번 8, 2번 30, 3번 70. 처음(2번 22, 3번 26)보다 멀리 보낸 만큼 크기를 키움
+const ROCK2_D = 30, ROCK3_D = 70;
+photoRock(LEDGE, CAM.z - ROCK2_D, 3 * ROCK2_D / 22, true, ["#b8a2a0", "#c7b2ad", "#a99391", "#d1beb8", "#b29b98"].map(c => new THREE.Color(c)), ROCK2_D / 22, ROCK2_D / 12.5, LEDGE0);
+photoRock(LEDGE_TOP, CAM.z - ROCK3_D, 3 * ROCK3_D / 26, false, ["#5f4e56", "#6c5a60", "#54454d"].map(c => new THREE.Color(c)), ROCK3_D / 26, ROCK3_D / 15, LEDGE_TOP0);
 const rock = photoRock(SLAB, 36, 3);
 // 요정: 바위 능선 위를 줄지어 지나감(지금은 멈춘 채 나는 모습). 은은하게 빛나는 물방울 몸, 끝이 뒤로 휜 뾰족한 고깔모자,
 // 몸 뒤로 가늘어지는 빛 꼬리, 작은 반투명 날개, 둘레의 은은한 빛무리. 디테일 없이 단순한 형태
@@ -468,15 +499,17 @@ function makeFairy(phase) {
 // 바위 위 풀포기: 꼭대기 선을 따라 아주 듬성듬성
 {
   const pts = [];
-  for (const [a, b, z, d] of rockTops) {
-    const n = Math.round(a.distanceTo(b) / 1.6);
+  const ks = [], qs = [];
+  for (const [a, b, z, d, k, q, topY] of rockTops) {
+    const n = Math.round(a.distanceTo(b) / (1.6 * k));
     for (let i = 0; i < n; i++) {
       if (rnd() < 0.35) continue;
-      const t = rnd(), x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
-      pts.push(new THREE.Vector3(x, y - 0.1, z - 0.6 - rnd() * (d - 1.2)));
+      const t = rnd(), x = a.x + (b.x - a.x) * t, y = topY ? topY(x) : a.y + (b.y - a.y) * t;
+      pts.push(new THREE.Vector3(x, y - 0.1 * k, z - 0.6 * k - rnd() * (d - 1.2 * k))); ks.push(k); qs.push(q);
     }
   }
-  plantGrass(pts, 1.4);
+  // 바위마다 따로 심음(심는 순서는 그대로)
+  for (let i = 0; i < pts.length;) { let j = i; while (j < pts.length && ks[j] === ks[i]) j++; plantGrass(pts.slice(i, j), 1.4, ks.slice(i, j), qs[i]); i = j; }
 }
 // 요정 여섯 마리: 앞 바위 능선을 따라 높낮이·크기를 조금씩 달리해 줄지어 지나감(나는 방향으로 기울임)
 {
@@ -875,6 +908,18 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
 
 // 움직임: 풀이 바람에 흔들리고, 먼지가 날리고, 카메라가 아주 천천히 숨 쉬듯 움직임
 const clock = new THREE.Clock();
+// 마우스를 따라 보는 각도가 바뀜. -1~1, 상세 페이지는 틀 기준 위치를 postMessage 로 보냄
+const TILT = { x: 0, y: 0, cx: 0, cy: 0 };
+if (!document.documentElement.classList.contains("embed")) {
+  addEventListener("mousemove", e => { TILT.x = e.clientX / innerWidth * 2 - 1; TILT.y = e.clientY / innerHeight * 2 - 1; });
+  document.addEventListener("mouseleave", () => { TILT.x = TILT.y = 0; });
+}
+addEventListener("message", e => { if (e.origin === location.origin && e.data && e.data.type === "tilt") { TILT.x = e.data.x; TILT.y = e.data.y; } });
+const UP = new THREE.Vector3(0, 1, 0), X_AX = new THREE.Vector3(1, 0, 0);
+const TILT_PIV = CAM.clone().add(LOOK.clone().sub(CAM).setLength(9.5));   // 시선이 바위에 닿는 곳
+const TILT_OFF = CAM.clone().sub(TILT_PIV), TILT_LOOK = LOOK.clone();
+const TILT_RIGHT = new THREE.Vector3().crossVectors(LOOK.clone().sub(CAM), UP).normalize();
+const TRUCK_PIV = new THREE.Vector3(0, 1.45, 0), TRUCK_OFF = new THREE.Vector3(0, 0.2, 6.0).sub(TRUCK_PIV);
 function tick() {
   const t = clock.getElapsedTime();
   FAIRIES.forEach(f => f.userData.update(t));
@@ -887,8 +932,13 @@ function tick() {
   dustGeo.attributes.position.needsUpdate = true;
   wind.value = t;
   // 아주 작게 숨 쉬듯 흔들림(바위가 사진 자리에서 거의 벗어나지 않을 만큼)
-  camera.position.set(CAM.x + Math.sin(t * 0.13) * 0.08, CAM.y + Math.sin(t * 0.17) * 0.04, CAM.z);
-  camera.lookAt(LOOK);
+  TILT.cx += (TILT.x - TILT.cx) * 0.06; TILT.cy += (TILT.y - TILT.cy) * 0.06;
+  // 트럭 카메라는 트럭을, 배경 카메라는 바위를 중심으로 같은 각도만큼 돈다 → 바위와 트럭이 한 덩어리로 움직이고 먼 산만 어긋남
+  const yaw = TILT.cx * 0.07, pitch = -TILT.cy * 0.02;
+  { const o = TILT_OFF.clone().applyAxisAngle(TILT_RIGHT, -pitch).applyAxisAngle(UP, yaw);
+    camera.position.copy(TILT_PIV).add(o); camera.position.x += Math.sin(t * 0.13) * 0.08; camera.position.y += Math.sin(t * 0.17) * 0.04;
+    camera.lookAt(TILT_LOOK.clone().sub(TILT_PIV).applyAxisAngle(TILT_RIGHT, -pitch).applyAxisAngle(UP, yaw).add(TILT_PIV)); }
+  { const o = TRUCK_OFF.clone().applyAxisAngle(X_AX, -pitch).applyAxisAngle(UP, yaw); truckCam.position.copy(TRUCK_PIV).add(o); truckCam.lookAt(TRUCK_PIV); }
   woman.update(t); man.update(t);
   renderer.setRenderTarget(rtBg); renderer.render(scene, camera);
   renderer.setClearColor(0x000000, 0); renderer.setRenderTarget(rtFg); renderer.clear(); renderer.render(truckScene, truckCam);
@@ -896,7 +946,7 @@ function tick() {
   window.__ready = true;
   requestAnimationFrame(tick);
 }
-window.__s = { camera, rock, THREE, scene, ROAD_PTS, ROAD2_PTS, rawHeight, truck };
+window.__s = { camera, truckCam, TILT, TILT_PIV, rock, THREE, scene, ROAD_PTS, ROAD2_PTS, rawHeight, truck };
 tick();
 </script>
 </body>

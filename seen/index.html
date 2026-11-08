@@ -16,6 +16,8 @@
   /* 비율이 모두 3:4로 같아서 벽돌형 대신 행을 맞춘 격자로 둔다 */
   .seen__grid { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
   .seen__grid .tile img { aspect-ratio: 3 / 4; object-fit: cover; }
+  /* 3D 장면 항목: 칸 안에 장면을 그대로 띄움(누르면 상세로 가도록 장면은 클릭을 받지 않음) */
+  .tile__scene { display: block; width: 100%; aspect-ratio: 3 / 4; border: 0; pointer-events: none; }
   @media (max-width: 1023px) { .seen__grid { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 760px) {
     .seen { padding-top: 12px; }
@@ -37,11 +39,11 @@
   <ul class="seen__grid" id="grid"></ul>
 </main>
 
-<script src="data.js?v=20261108-1"></script>
+<script src="data.js?v=20261108-3"></script>
 <script>
 document.getElementById("grid").innerHTML = SEEN.map(s => `
   <li><a class="tile" href="detail.html?id=${s.id}">
-    <img src="${s.img}" alt="${s.title}" loading="lazy">
+    ${s.scene ? `<iframe class="tile__scene" src="${s.scene}?embed" title="${s.title}" loading="lazy" tabindex="-1"></iframe>` : `<img src="${s.img}" alt="${s.title}" loading="lazy">`}
     <span class="tile__cap">${s.title}, ${s.date}</span>
   </a></li>`).join("");
 </script>
