@@ -76,10 +76,61 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
     dress: mat("#f1c3ab"), sleeve: mat("#ffffff", { vertexColors: true, emissive: new THREE.Color("#2a1814") }), puff: mat("#ffffff", { vertexColors: true, emissive: new THREE.Color("#3a2420") }), collar: mat("#f9d8c4"), trim: mat("#c08470"), dressShade: mat("#dba48e"), bodice: mat("#ffffff", { map: bodiceTex }), hem: mat("#ffffff", { map: hemTex, side: THREE.DoubleSide }),
     lace: mat("#fbf6ee", { side: THREE.DoubleSide, emissive: new THREE.Color("#5a4a46") }), sheer: mat("#fbf7f6", { side: THREE.DoubleSide, emissive: new THREE.Color("#7a6e6e") }),
     skin: mat("#fcd8bd", { gradientMap: SOFT }), blush: mat("#f0a3a0", { transparent: true, opacity: 0.5, depthWrite: false, gradientMap: SOFT }),
-    hair: mat("#3b2a25"), hairHi: mat("#5c4136"), line: mat("#3a2629"), mouth: mat("#8a3a44"), tongue: mat("#e7868e"), teeth: mat("#ffffff", { gradientMap: SOFT }),
+    hair: mat("#2e1d18"), hairHi: mat("#47302a"), line: mat("#3a2629"), mouth: mat("#8a3a44"), tongue: mat("#e7868e"), teeth: mat("#ffffff", { gradientMap: SOFT }),
     gold: mat("#e0b85c"), blushGold: mat("#e9a39a"), shoe: mat("#f1e6da"), mic: mat("#2b2b2e"), grille: mat("#9a9ca2"),
   };
-  const add = (geo, m, p = g) => { const o = new THREE.Mesh(geo, m); o.castShadow = o.receiveShadow = true; p.add(o); return o; };
+  // 머리카락 흔들림(화면 카드에서 계산): 뿌리는 두피에 고정되고 끝으로 갈수록 크게, 바람 물결이 위에서 아래로 흘러내리듯 이어짐.
+  // 고개가 기울면 머리끝은 따라 돌지 않고 아래로 늘어진 채 남음. aSw 가 없는 물체는 움직이지 않음
+  // 머리결 그림: 가는 머리카락을 여러 겹 그린 띠. 가운데는 빽빽하고 양옆·끝으로 갈수록 가늘어지며 비침(판의 모양은 이 그림의 투명도로 잘림)
+  const paintHair = opaque => {
+    const W = 256, H = 1024, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
+    let sd = 11; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    if (opaque) { x.fillStyle = "#3a2018"; x.fillRect(0, 0, W, H); }
+    x.fillStyle = "#3a2018"; x.beginPath(); x.moveTo(W * 0.14, 0); x.lineTo(W * 0.86, 0); x.bezierCurveTo(W * 0.84, H * 0.6, W * 0.66, H * 0.9, W * 0.5, H * 0.96); x.bezierCurveTo(W * 0.34, H * 0.9, W * 0.16, H * 0.6, W * 0.14, 0); x.fill();
+    const strand = (col, lw, x0, end, ph) => {
+      x.strokeStyle = col; x.lineCap = "round"; let px = x0, py = 0;
+      for (let y = 8; y <= end; y += 8) { const v = y / H, nx = x0 + (W / 2 - x0) * v * v * 0.45 + 3 * Math.sin(v * 9 + ph); x.lineWidth = lw * (1 - 0.75 * Math.max(0, (y - end * 0.7) / (end * 0.3))); x.beginPath(); x.moveTo(px, py); x.lineTo(nx, y); x.stroke(); px = nx; py = y; }
+    };
+    const DK = ["#2e1812", "#3a2018", "#4a2a1e"], MD = ["#5a3424", "#6a3e2a", "#7a4a32"], HI = ["#9a6446", "#b07a56", "#c48f68"];
+    for (let i = 0; i < 70; i++) strand(DK[i % 3], 2 + 2 * r(), W * (0.06 + 0.88 * r()), H * (0.82 + 0.16 * r()), r() * 6);
+    for (let i = 0; i < 60; i++) strand(MD[i % 3], 1.4 + 1.4 * r(), W * (0.1 + 0.8 * r()), H * (0.78 + 0.18 * r()), r() * 6);
+    for (let i = 0; i < 26; i++) strand(HI[i % 3], 0.8 + 0.8 * r(), W * (0.18 + 0.64 * r()), H * (0.7 + 0.2 * r()), r() * 6);
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+  };
+  const HAIR_TEX = paintHair(false);
+  // 두피 덩어리용: 빈틈 없이 칠한 머리결(정수리에서 사방으로 결이 퍼져 내려감). 판 사이로 드러나도 매끈한 띠로 보이지 않게
+  const SCALP_TEX = paintHair(true); SCALP_TEX.wrapS = THREE.RepeatWrapping; SCALP_TEX.repeat.set(9, 0.6); SCALP_TEX.offset.set(0, 0.4);
+  // 애니풍 머리 덩어리 재질: 결 그림 없이 3단 명암(밝음·중간·그늘). 그늘은 보랏빛으로 색을 틀고, 정수리 빛 띠와 물결 마루 윤기 띠는 따로 그림
+  const RAMP3 = (() => { const t = new THREE.DataTexture(new Uint8Array([70, 160, 255]), 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+  const CARD = [mat("#563326", { gradientMap: RAMP3, side: THREE.DoubleSide }), mat("#4a2c21", { gradientMap: RAMP3, side: THREE.DoubleSide })];
+  const HAIR_U = { uHT: { value: 0 }, uHeadDz: { value: 0 } };
+  for (const m of [C.hair, C.hairHi, ...CARD]) m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, HAIR_U);
+    sh.vertexShader = "attribute float aSw; uniform float uHT, uHeadDz;\n" + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
+      { vec3 p = position; float ph = p.y * 9. + p.x * 2.;
+        float dx = aSw * (0.009 * sin(uHT * 1.2 + ph) + 0.003 * sin(uHT * 2.3 + p.x * 40. + p.z * 25.) - uHeadDz * max(0., 0.01 - p.y) * 0.9);
+        float dz = aSw * 0.005 * sin(uHT * 0.95 + ph + 1.3);
+        // 얼굴 옆(머리 앞쪽 절반)의 가닥은 얼굴 쪽으로는 거의 흔들리지 않음(볼을 파고들어 눌려 보이지 않게)
+        float nearFace = step(-0.04, p.z) * step(-0.16, p.y);
+        if (dx * p.x < 0.) dx *= mix(1., 0.1, nearFace);
+        if (dz > 0.) dz *= mix(1., 0.2, nearFace);
+        transformed.x += dx; transformed.z += dz;
+        transformed.y += aSw * 0.0015 * sin(uHT * 1.2 + ph + 0.6); }`);
+    if (!CARD.includes(m)) return;
+    // 머리결 판의 명암: 물결 마루는 윤기로 밝게, 골은 깊게 어둡게. 다발마다 밝기가 다르고 안쪽 층은 어둡게(강약 대비)
+    sh.vertexShader = "attribute float aWv, aTone; varying float vWv, vTone, vLen, vU; varying vec3 vHP;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n vWv = aWv; vTone = aTone; vLen = uv.y; vU = uv.x; vHP = position;");
+    sh.fragmentShader = "varying float vWv, vTone, vLen, vU; varying vec3 vHP;\n" + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+      { float tone = vTone < 0.01 ? 1.0 : vTone, trough = smoothstep(-0.2, -0.95, vWv);
+        float ln = smoothstep(0.82, 1.0, abs(sin(vU * 9.42 + vLen * 3.0 + vTone * 20.0)));   // 덩어리 안 가는 결 선 몇 줄
+        diffuseColor.rgb *= tone * (1.0 - 0.14 * trough) * (1.0 - 0.28 * ln) * mix(1.0, 0.85, smoothstep(0.8, 1.0, vLen)); }`).replace("#include <opaque_fragment>", `
+      { float lum = dot(outgoingLight, vec3(0.299, 0.587, 0.114)) / max(0.02, dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), sh = 1.0 - smoothstep(0.32, 0.5, lum);   // 그늘 판단: 원래 색 대비 받은 빛의 비율
+        outgoingLight = mix(outgoingLight, outgoingLight * vec3(0.95, 0.86, 1.15) + vec3(0.01, 0.0, 0.02), sh);   // 그늘은 보랏빛
+        float dRing = abs(vHP.y - (0.074 + 0.005 * sin(vHP.x * 80.0))), ring = smoothstep(0.006, 0.002, dRing) * smoothstep(0.0, 0.04, vHP.z) * (1.0 - sh);
+        outgoingLight += vec3(0.0) * ring;   // 정수리 빛 띠(천사 고리)
+        outgoingLight += vec3(0.05, 0.04, 0.035) * smoothstep(0.85, 0.99, vWv) * (1.0 - sh); }   // 물결 마루 윤기 띠
+      #include <opaque_fragment>`);
+  };
+  const add = (geo, m, p = g) => { const o = new THREE.Mesh(geo, m); o.castShadow = o.receiveShadow = true; if (CARD.includes(m)) o.receiveShadow = false; p.add(o); return o; };   // 머리 덩어리는 다른 덩어리의 그림자를 받지 않음(얼룩 방지)
   const between = (o, a, b) => { o.position.copy(a).add(b).multiplyScalar(0.5); o.scale.y = a.distanceTo(b); o.quaternion.setFromUnitVectors(V(0, 1, 0), b.clone().sub(a).normalize()); };
   // 끝으로 갈수록 가늘어지는 관(머리카락 가닥·손가락)
   function taper(points, r0, r1, flat = 1, seg = 28, rad = 8) {
@@ -350,7 +401,7 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
   const collide = (pts, margin) => pts.map((q, i) => { if (i < 2) return q; const h = q.clone(); if (h.y < -0.045 && Math.abs(h.x) < 0.045) h.z = Math.min(h.z, -0.035); let w = h.applyMatrix4(HM); for (let it = 0; it < 3; it++) w = pushOut(w, margin); return w.applyMatrix4(HMi); });   // 턱 아래 높이에서는 목 뒤로
   {
     // 리본 다발: 중심선 점들을 따라 납작한 타원 단면(폭 w, 두께 th)을 이어 붙임. 두께 방향은 머리 바깥쪽
-    function ribbon(pts, w0, th0, seg = 40) {
+    function ribbon(pts, w0, th0, seg = 40, swing = 0, r0 = 0) {
       pts = collide(pts, w0 * HEAD_S * 0.6 + 0.004);
       const curve = new THREE.CatmullRomCurve3(pts), RAD = 8, pos = [], idx = [];
       for (let i = 0; i <= seg; i++) {
@@ -361,66 +412,116 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
         for (let j = 0; j < RAD; j++) { const a = j / RAD * Math.PI * 2; pos.push(c.x + B.x * Math.cos(a) * w + out.x * Math.sin(a) * th, c.y + B.y * Math.cos(a) * w + out.y * Math.sin(a) * th, c.z + B.z * Math.cos(a) * w + out.z * Math.sin(a) * th); }
       }
       for (let i = 0; i < seg; i++) for (let j = 0; j < RAD; j++) { const a = i * RAD + j, b = i * RAD + (j + 1) % RAD, c2 = a + RAD, d = b + RAD; idx.push(a, c2, b, b, c2, d); }
-      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals(); return geo;
+      const sw = []; for (let i = 0; i <= seg; i++) { const f = swing * Math.pow(Math.max(0, (i / seg - r0) / (1 - r0)), 1.5); for (let j = 0; j < RAD; j++) sw.push(f); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("aSw", new THREE.Float32BufferAttribute(sw, 1)); geo.setIndex(idx); geo.computeVertexNormals(); return geo;
     }
+    // 그림 입힌 판: 중심선을 따라 머리 바깥을 향한 넓은 판. 양옆은 머리 쪽으로 살짝 오므려 둥근 다발처럼 보이게.
+    // 물결은 판의 폭 방향(머리 둘레 방향)으로 굽이쳐서, 정면에서 결이 S자로 흘러 보이게(앞뒤로 출렁이면 가로 줄무늬가 생김)
+    function card(pts, w0, seg, swing, r0, waveFn, vs = 1, tone = 1, tip = 1.8, tipMin = 0.02) {   // vs: 그림의 몇 할까지만 쓸지(짧은 판은 끝 뾰족한 부분을 안 씀)
+      pts = collide(pts, w0 * HEAD_S * 0.3 + 0.004);
+      const curve = new THREE.CatmullRomCurve3(pts), A = 5, pos = [], uv = [], sw = [], idx = [], wv = [], tn = [];
+      let mx = 1e-5; if (waveFn) for (let i = 0; i <= seg; i++) mx = Math.max(mx, Math.abs(waveFn(i / seg)));
+      for (let i = 0; i <= seg; i++) {
+        const t = i / seg, c = curve.getPointAt(t), T = curve.getTangentAt(t);
+        const out = c.y > -0.02 ? V(c.x, c.y + 0.02, c.z + 0.004) : V(c.x, 0, c.z + 0.02);
+        out.addScaledVector(T, -out.dot(T)).normalize(); const B = V().crossVectors(T, out).normalize();
+        const w = w0 * Math.max(tipMin, 1 - Math.pow(t, tip)) * (t < 0.06 ? 0.55 + 7.5 * t : 1), ofs = waveFn ? waveFn(t) : 0, f = swing * Math.pow(Math.max(0, (t - r0) / (1 - r0)), 1.5);
+        for (let j = 0; j < A; j++) { const u = j / (A - 1), a = (u - 0.5) * 2; const oo = 0.18 * ofs - a * a * w * 0.3;   // 물결이 바깥쪽으로도 굽이쳐야 얼굴 옆 윤곽에서도 물결이 보임
+          pos.push(c.x + B.x * (a * w + ofs) + out.x * oo, c.y + B.y * (a * w + ofs) + out.y * oo, c.z + B.z * (a * w + ofs) + out.z * oo); uv.push(u, 1 - t * vs); sw.push(f); wv.push(ofs / mx); tn.push(tone * (0.92 + 0.16 * Math.sin(u * 7 + i * 0.02))); }
+      }
+      for (let i = 0; i < seg; i++) for (let j = 0; j < A - 1; j++) { const a = i * A + j, b = a + 1, c2 = a + A, d = c2 + 1; idx.push(a, c2, b, b, c2, d); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute("aSw", new THREE.Float32BufferAttribute(sw, 1)); geo.setAttribute("aWv", new THREE.Float32BufferAttribute(wv, 1)); geo.setAttribute("aTone", new THREE.Float32BufferAttribute(tn, 1)); geo.setIndex(idx); geo.computeVertexNormals();
+      { const nr = geo.attributes.normal, ps = geo.attributes.position, e = V(), r = V(), n0 = V();
+        for (let i = 0; i < ps.count; i++) { const x = ps.getX(i), y = ps.getY(i), z = ps.getZ(i);
+          e.set(x / VOL.x ** 2, (y - 0.012) / VOL.y ** 2, z / (z > 0 ? VOL.zf : VOL.zb) ** 2).normalize(); r.set(x, 0.12, z + 0.02).normalize();
+          const k = THREE.MathUtils.smoothstep(-y, 0.0, 0.09); e.lerp(r, k).normalize(); n0.set(nr.getX(i), nr.getY(i), nr.getZ(i)); if (n0.dot(e) < 0) n0.negate(); e.multiplyScalar(0.92).addScaledVector(n0, 0.08).normalize(); nr.setXYZ(i, e.x, e.y, e.z); } }
+      return geo;
+    }
+    const hsh = k => { const v = Math.sin(k * 12.9898) * 43758.5453; return v - Math.floor(v); };
+    // 머리 볼륨: 정수리가 두피에서 떠서 둥글고 높게, 관자놀이 옆도 볼록하게 부푼 모양(사진). 가닥은 모두 이 면 위에 얹음
+    const VOL = { x: 0.086, y: 0.108, zf: 0.086, zb: 0.098 };
     // 두피 덩어리: 머리보다 살짝 큰 껍데기. 얼굴 쪽(이마선 아래)은 머리 안으로 밀어 넣어 숨김
     {
       const sc = new THREE.SphereGeometry(1, 40, 30), q = sc.attributes.position;
       for (let i = 0; i < q.count; i++) {
-        let x = q.getX(i) * 0.076, y = 0.012 + q.getY(i) * (q.getY(i) > 0 ? 0.097 : 0.07), z = q.getZ(i) * (q.getZ(i) > 0 ? 0.08 : 0.088);
+        let x = q.getX(i) * VOL.x, y = 0.012 + q.getY(i) * (q.getY(i) > 0 ? VOL.y : 0.07), z = q.getZ(i) * (q.getZ(i) > 0 ? VOL.zf : VOL.zb);
         const hl = 0.075 - Math.pow(Math.min(1, Math.abs(x) / 0.078), 2.5) * 0.1;   // 이마선: 가운데 높고 관자놀이로 내려감
-        if (z > -0.01 && y < hl) { const k = 0.82; x *= k; z = z * k - 0.01; }
+        if (z > -0.01 && y < hl + 0.025) { const f = THREE.MathUtils.smoothstep(hl + 0.025 - y, 0, 0.03) * THREE.MathUtils.smoothstep(z, -0.01, 0.02), k = 1 - 0.18 * f; x *= k; z = z * k - 0.01 * f; }   // 이마선에서 계단지지 않고 부드럽게 안으로 들어감
         if (y < 0.0) z = Math.min(z, -0.02 + 0.3 * y);   // 턱 아래·목 앞으로 두피가 내려오지 않게
         q.setXYZ(i, x, y, z);
       }
-      sc.computeVertexNormals(); add(sc, C.hair, head);
+      sc.computeVertexNormals(); add(sc, CARD[1], head).receiveShadow = false;   // 밑바탕은 한 톤 어둡게(틈으로 보여도 밝은 조각처럼 튀지 않게)
     }
     const wave = (d, ph) => Math.sin(d * 75 + ph);   // d: 정수리에서 내려온 거리. 파장 약 8cm
-    // 가르마에서 옆으로 넘어가 아래로 떨어지는 위 머리(좌우 각 11가닥, 앞에서 뒤로)
-    for (const s of [-1, 1]) for (let k = 0; k < 18; k++) {
-      const zp = 0.06 - k * 0.0085, front = k < 3, ph = k * 0.5 + (s > 0 ? 0.3 : 0);
+    // 가르마에서 옆으로 넘어가 아래로 떨어지는 위 머리(좌우 각 36가닥, 앞에서 뒤로. 앞쪽 8가닥은 가늘게, 얼굴 옆선 바깥으로 비켜 어깨 앞으로)
+    // 잔웨이브: 촘촘한 물결이 위에서 아래까지. 가닥마다 박자를 엇갈리게 해서 한 덩어리로 뭉쳐 보이지 않게
+    for (const s of [-1, 1]) for (let k = 0; k < 24; k++) {
+      if (s > 0 && k < 3) continue;   // 손을 올린 쪽은 팔 앞으로 늘어지지 않게 앞 가닥 생략
+      const zp = 0.064 - k * 0.0066, front = k < 3, ph = k * 0.55 + 0.6 * Math.sin(k * 7.13) + (s > 0 ? 2.1 : 0);   // 덩어리마다 물결 박자를 흩뜨림(마루가 가로로 줄지어 사다리처럼 보이지 않게)   // 네 가닥씩 비슷한 박자로 같이 굽이침
       const skullW = 0.072 * Math.sqrt(Math.max(0.15, 1 - (zp / 0.09) ** 2)), top = -0.02 + 0.124 * Math.sqrt(Math.max(0.1, 1 - (zp / 0.095) ** 2));
       const pts = [];
       // 머리 곡면 바로 위에서 출발(가르마 쪽은 거의 붙고 옆으로 갈수록 살짝 부풂). 수평까지 돌지 않고 비스듬히 내려오는 방향에서 끊어 그대로 흘러내리게
       const ryz = 0.09 * Math.sqrt(Math.max(0.1, 1 - (zp / 0.085) ** 2));
-      for (let i = 0; i <= 4; i++) { const a = i / 4 * Math.PI * 0.42, lift = 0.003 + 0.004 * Math.sin(a) + 0.002 * Math.sin(k * 1.7) * Math.sin(a); pts.push(V(s * (0.002 + Math.sin(a) * (skullW + lift)), 0.012 + Math.cos(a) * (ryz + lift), zp * (1 - 0.15 * Math.sin(a)))); }
-      const len = front ? 0.3 + (k % 2) * 0.05 : 0.34 + (k % 3) * 0.035, n = 14;
+      // 두피 껍데기 면에 그대로 붙임: 정수리 윤곽은 두피의 매끈한 곡선이 되고, 가닥은 결로만 보임(가닥 끝이 윤곽 밖으로 삐죽 나오지 않게)
+      const g = Math.sqrt(Math.max(0.1, 1 - (zp / (zp > 0 ? VOL.zf : VOL.zb)) ** 2));
+      const a0 = Math.PI * 0.3 * THREE.MathUtils.clamp((zp - 0.0) / 0.025, 0, 1);   // 앞쪽 가닥은 가르마가 아니라 앞머리 구역 옆에서 시작
+      const a1 = Math.max(Math.PI * 0.32, a0 + Math.PI * 0.06);   // 두피를 떠나는 높이: 관자놀이 위
+      for (let i = 0; i <= 4; i++) { const a = a0 + i / 4 * (a1 - a0), lift = 0.0022; pts.push(V(s * (0.007 + Math.sin(a) * (VOL.x * g + lift)), 0.012 + Math.cos(a) * (VOL.y * g + lift), zp)); }
+      const len = front ? 0.3 + (k % 3) * 0.03 : 0.32 + ((k * 7) % 5) * 0.02, n = 16;   // 가슴께에서 끝남. 층이 지게 길이를 섞음
       const sx = pts[4].x, sz = pts[4].z, sy = pts[4].y;
       for (let i = 1; i <= n; i++) {
-        const t = i / n, y = sy - t * len, d = t * len, amp = 0.007 + 0.017 * t;
-        let x = sx + s * (0.035 * Math.sin(Math.min(1, t * 1.3) * Math.PI * 0.5)) + s * amp * wave(d, ph), z = sz - (front ? -0.01 * t : 0.03 * t);
-        if (y < -0.12 && !front) z = Math.min(z, -0.09 - 0.02 * t + 0.01 * wave(d, ph + 1));   // 어깨 아래로는 등 뒤로
-        if (front) { z = sz + 0.035 * Math.sin(Math.min(1, t * 2.2) * Math.PI * 0.5) - 0.01 * k * t; x = sx + s * (0.012 + 0.004 * t + 1.1 * amp * wave(d, ph + k)); }   // 사진: 어깨 앞으로 가슴·허리까지 늘어짐   // 어깨 뒤로 넘어감
+        const t = i / n, y = sy - t * len, d = t * len, cw = Math.min(1, t * 25), amp = (0.006 + 0.003 * t) * cw, ca = d * 160 + ph;
+        const ease = 0.5 - 0.5 * Math.cos(Math.min(1, t * 1.6) * Math.PI);   // 두피에서 바깥으로 천천히 벌어짐(꺾이지 않게). 옆머리는 얼굴 높이에서 이미 옆으로 부풀고 아래로 더 퍼짐
+        const pk = s > 0 && zp > -0.01 ? 0.3 : 1;   // 손을 올린 쪽 앞머리칼은 손 뒤로 지나가게 덜 부풂
+        let x = sx + s * (pk * (0.016 * Math.min(1, t * 3) + 0.072 * THREE.MathUtils.smoothstep(t, 0.12, 0.5)) + 0.045 * t * t), z = sz - 0.03 * t;   // 사진: 관자놀이는 붙고 턱~어깨 높이에서 가장 넓음   // 관자놀이 아래부터 옆으로 볼록하게 부풂   // 아래로 갈수록 조금씩 퍼짐
+        if (y < -0.12 && !front) z = Math.min(z, -0.09 - 0.02 * t);   // 어깨 아래로는 등 뒤로
+        if (front) { z = sz + 0.014 * Math.sin(Math.min(1, t * 2.2) * Math.PI * 0.5) - 0.004 * k * t; x = sx + s * (0.014 + pk * (0.012 * Math.min(1, t * 3) + 0.05 * THREE.MathUtils.smoothstep(t, 0.15, 0.55)) + 0.006 * t + 0.006 * (k % 3) * t); }   // 얼굴 옆선 바깥으로   // 얼굴 옆선 바깥으로 비켜 어깨 앞으로
         pts.push(V(x, y, z));
       }
-      locks.push(add(ribbon(pts, front ? 0.022 : 0.034, 0.0065), k % 4 === 1 ? C.hairHi : C.hair, head));   // 얇은 판처럼 겹쳐 두툼한 고리처럼 보이지 않게
+      let arcL = 0; for (let i = 1; i <= 4; i++) arcL += pts[i].distanceTo(pts[i - 1]); const t0 = arcL / (arcL + len);   // 두피 위 구간이 끝나는 곳부터 물결
+      const wf = tt => { const T = Math.max(0, (tt - t0) / (1 - t0)), d = T * len; return (0.008 + 0.005 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
+      { const m = add(card(pts, front ? 0.016 : (s > 0 && zp > -0.02 ? 0.032 : 0.05), 120, 1, 0.12, wf, 1, (front ? 1.05 : 0.9 + 0.16 * hsh(k + s * 7)) * (zp < -0.04 ? 0.85 : 1) * (s > 0 ? 1.25 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head); m.castShadow = false; if (zp > -0.03) m.receiveShadow = false; locks.push(m); }   // 정수리에 겹친 판끼리 검은 그림자 조각이 생기지 않게
     }
     // 뒤통수에서 등으로 흘러내리는 뒷머리(넓게 겹쳐 빈틈을 메움)
-    for (let k = 0; k < 21; k++) {
-      const u = (k - 10) / 10, a = Math.PI + u * 1.2, ph = k * 0.9;
-      const rx = Math.sin(a) * 0.075, rz = Math.cos(a) * 0.088;
+    for (let k = 0; k < 26; k++) {
+      const u = (k - 12.5) / 12.5, a = Math.PI + u * 1.2, ph = k * 0.5 + 0.6 * Math.sin(k * 5.71);
+      const rx = Math.sin(a) * 0.092, rz = Math.cos(a) * 0.1;
       const pts = [V(rx * 0.5, 0.07, rz * 0.6), V(rx, 0.01, rz)];
-      const len = 0.36 + (k % 3) * 0.035;
-      for (let i = 1; i <= 12; i++) { const t = i / 12, d = t * len, amp = 0.007 + 0.018 * t; pts.push(V(rx * (1 + 1.3 * t) + amp * wave(d, ph), 0.01 - d, Math.min(rz - 0.012 * t, -0.085) - 0.015 * t + 0.008 * wave(d, ph + 1.5))); }
-      locks.push(add(ribbon(pts, 0.044, 0.014), k % 2 === 0 ? C.hairHi : C.hair, head));
+      const len = 0.36 + ((k * 3) % 4) * 0.025;
+      for (let i = 1; i <= 14; i++) { const t = i / 14, d = t * len; pts.push(V(rx * (1 + 0.5 * t + 0.8 * t * t), 0.01 - d, Math.min(rz - 0.012 * t, -0.085) - 0.015 * t)); }
+      const wf = tt => { const T = Math.max(0, (tt - 0.12) / 0.88), d = T * len; return (0.008 + 0.005 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
+      locks.push(add(card(pts, 0.062, 120, 1, 0.1, wf, 1, (0.86 + 0.2 * hsh(k * 3.1)) * (u > 0.2 ? 1.15 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head));   // 안쪽 층: 어둡게
     }
     // 등 뒤 채움 판(다발 사이로 비어 보이지 않게)
-    { const bk = add(new THREE.CylinderGeometry(0.06, 0.15, 0.36, 28, 6, true, Math.PI * 0.72, Math.PI * 0.56), mat("#3b2a25", { side: THREE.DoubleSide }), head); bk.position.set(0, -0.2, -0.075); }
+    { const bk = add(new THREE.CylinderGeometry(0.06, 0.15, 0.36, 28, 6, true, Math.PI * 0.72, Math.PI * 0.56), mat("#4a2c22", { side: THREE.DoubleSide }), head); bk.position.set(0, -0.2, -0.075); }
     // 일자 시스루 앞머리: 이마선에서 이마 곡면을 따라 내려와 눈썹 위에서 끝남. 가닥 사이가 살짝 벌어져 이마가 비침
     const brow = (x, y) => 0.072 * Math.sqrt(Math.max(0.02, 1 - (x / 0.071) ** 2 - ((y - 0.012) / 0.09) ** 2));
-    for (let k = 0; k < 17; k++) {
-      const u = (k - 8) / 8, x0 = u * 0.05, end = 0.034 + 0.006 * Math.abs(u) ** 2 - 0.004 * ((k * 7) % 3), pts = [];
-      for (let i = 0; i <= 7; i++) {
-        const t = i / 7, x = x0 * (0.55 + 0.45 * t) + 0.004 * Math.sin(k * 2.1) * t, y = 0.1 - (0.1 - end) * t;
-        pts.push(V(x, y, brow(x, y) + 0.005 - 0.003 * t - (i === 0 ? 0.01 : 0)));
-      }
-      const tip = pts[7]; pts.push(V(tip.x + 0.003 * Math.sin(k), tip.y - 0.006, tip.z - 0.002));
-      add(ribbon(pts, 0.0125 + 0.002 * (k % 2), 0.0024, 26), k % 4 === 2 ? C.hairHi : C.hair, head);   // 가늘고 얇은 가닥 여럿
+    // 정수리 앞쪽: 가운데 가르마 한 점에서 사방으로 퍼져 내려가는 결(가운데는 앞으로, 양옆은 비스듬히 옆으로 흘러 옆머리로 이어짐)
+    for (let k = 0; k < 16; k++) {
+      const u = (k - 7.5) / 7.5, th = u * 1.5, pts = [];
+      const L = (0.085 + 0.07 * Math.abs(u)) * (0.9 + 0.1 * (((k * 7) % 5) / 4));   // 끝 길이를 엇갈려 일자로 잘린 단이 생기지 않게
+      for (let i = 0; i <= 8; i++) { const t = i / 8, rho = t * L, gx = Math.sin(th) * rho + Math.sign(u) * 0.002, zr = -0.03 + Math.cos(th) * (rho + 0.024 * (1 - t)), q = (zr / (zr > 0 ? VOL.zf : VOL.zb)) ** 2 + (gx / VOL.x) ** 2; if (q > 0.8 && pts.length >= 4) break; const gg = Math.sqrt(Math.max(0.03, 1 - q)); pts.push(V(gx, 0.012 + VOL.y * gg + 0.0015, zr)); }   // 머리 면을 벗어나 옆으로 삐져나오기 전에 끝냄
+      { const cv = add(card(pts, 0.05, 24, 0, 0, null, 0.9, 0.95 + 0.1 * hsh(k * 1.7)), CARD[k % 3 === 1 ? 1 : 0], head); cv.castShadow = cv.receiveShadow = false; }   // 끝은 그림의 뾰족한 끝까지 써서 단 없이 흩어짐   // 바로 밑 두피·앞머리 뿌리에 검은 그림자가 지지 않게
     }
+    // 시스루: 가는 가닥 두세 개씩 뭉친 다발 7개를 사이를 띄워 늘어뜨림. 다발 사이로 이마가 비치고, 가운데는 살짝 갈라짐
+    const CL = [-1.0, -0.74, -0.47, -0.2, 0.05, 0.3, 0.56, 0.8, 1.02];
+    CL.forEach((cu, c) => { for (let m = 0; m < 3; m++) {
+      const k = c * 5 + m, u = cu + (m - 1) * 0.075, x0 = u * 0.057, edge = Math.max(0, Math.abs(u) - 0.85) / 0.2, end = 0.012 - 0.006 * Math.abs(u) ** 2 - 0.007 * (((k * 7) % 5) / 4) - 0.06 * edge, pts = [];
+      // 뿌리: 정수리 앞쪽(앞머리 구역) 두피 위
+      for (const zr of [0.04, 0.058]) { const gx = x0 * (0.5 + 0.1 * (zr - 0.045) / 0.015), gg = Math.sqrt(Math.max(0.05, 1 - (zr / VOL.zf) ** 2 - (gx / VOL.x) ** 2)); pts.push(V(gx, 0.012 + VOL.y * gg + 0.0008, zr)); }   // 가르마에서 퍼져 내려온 결이 끝나는 곳에서 이어받음
+      for (let i = 1; i <= 14; i++) {
+        // 펌 결: 다발째 완만하게 한 번 휨. 다발 가닥들은 끝에서 한 점으로 모여 뾰족한 다발이 됨
+        const t = i / 14, wv = Math.min(1, t * 2.5) * (0.005 + 0.004 * t), wa = t * Math.PI * 3.2 + c * 1.3 + m * 0.15, cl = Math.pow(t, 4);   // 펌: 다발째 같이 굽이치고 끝이 말림   // 가닥마다 살짝 다른 박자로 흩어짐   // 사진: 앞머리도 물결짐
+        const x = x0 * (0.6 + 0.4 * t) - (u - cu) * 0.057 * 0.25 * t * t + 0.003 * Math.sin(k * 2.1) * t - (m - 0.8) * 0.002 * t + Math.sign(u) * (0.012 * edge + 0.007 * Math.abs(u)) * t * t + wv * Math.sin(wa) + (c % 2 ? 1 : -1) * 0.004 * cl, y = 0.1 - (0.1 - end) * t + 0.005 * cl;   // 바깥 다발일수록 옆으로 살짝 휘어 흐름
+        pts.push(V(x, y, brow(x, y) + 0.007 + 0.012 * Math.sin(Math.PI * Math.min(1, t * 1.5)) - 0.003 * t + 0.5 * wv * Math.cos(wa)));   // 이마선 위에서 떠올랐다 내려앉음   // 이마에서 떠서 둥글게
+      }
+      
+      add(card(pts, 0.0105, 48, 0.12, 0.3, null, 0.85, 1.0 + 0.2 * hsh(k * 2.3)), CARD[k % 3 === 1 ? 1 : 0], head).castShadow = false;   // 앞머리도 머리결 그림 입힌 가는 판
+    } });
     // 얼굴 옆을 감싸는 짧은 옆 앞머리(볼 옆으로 흘러 턱선까지)
-    for (const s of [-1, 1]) for (let k = 0; k < 2; k++) {
-      const pts = []; for (let i = 0; i <= 7; i++) { const t = i / 7, y = 0.06 - t * (0.2 + k * 0.05); pts.push(V(s * (0.072 + 0.005 * k + 0.012 * Math.sin(t * Math.PI) + 0.007 * Math.sin(t * 9 + k)), y, 0.03 - k * 0.014 + 0.01 * t)); }   // 볼 옆을 넓게 감싸며 어깨까지
-      add(ribbon(pts, 0.016, 0.006, 26), C.hair, head);
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
+      const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12, y = 0.045 - t * (0.16 + k * 0.035); pts.push(V(s * (0.06 + 0.007 * k + 0.008 * Math.sin(t * Math.PI) + 0.007 * Math.sin(t * 10 + k * 2) * Math.min(1, t * 3)), y, 0.014 - k * 0.011 + 0.004 * t)); }   // 사진: 앞머리 양끝에서 이어져 볼 옆선을 살짝 덮으며 턱까지   // 위 끝은 위 머리 안쪽에 숨겨 윤곽 밖으로 각지게 나오지 않게   // 볼 옆을 넓게 감싸며 어깨까지
+      add(card(pts, 0.024, 48, 0.5, 0.15, null, 0.9, 1.05), CARD[k % 2], head).castShadow = false;
     }
   }
   // ── 팔: 어깨-팔꿈치-손목을 지나는 한 줄기 관(끊김 없이 가늘어짐, 매 프레임 다시 만듦), 소매 끝 비치는 물결 주름 두 겹
@@ -475,7 +576,7 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
       add(finger(pts, 0.0058, 0.0048), C.skin, hand);
     }
     add(finger([V(-0.016, -0.012, 0.006), V(-0.022, -0.03, 0.022), V(-0.012, -0.045, 0.045), V(-0.002, -0.05, 0.047)], 0.0068, 0.005), C.skin, hand);
-    const mic = new THREE.Group(); mic.position.copy(c); mic.scale.setScalar(0.8); hand.add(mic);
+    const mic = new THREE.Group(); mic.position.copy(c); mic.scale.setScalar(0.8); hand.add(mic); g.userData.mic = mic;   // 장면에서 밤 조명이 마이크를 겨눌 때 씀
     const body = add(new THREE.CylinderGeometry(0.0145, 0.011, 0.16, 16), C.mic, mic); body.rotation.z = Math.PI / 2; body.position.x = 0.02;
     add(new THREE.CylinderGeometry(0.017, 0.0155, 0.012, 16), C.gold, mic).rotation.z = Math.PI / 2; mic.children[1].position.x = -0.064;
     add(new THREE.SphereGeometry(0.027, 18, 14), C.grille, mic).position.x = -0.088;
@@ -528,7 +629,7 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
       // 왼팔(사진 17:35): 팔꿈치는 몸 옆 아래로 내리고 손끝을 귀 위 머리카락에
       pose(L, ARM.L.sh, ARM.L.wr.clone().add(V(0, 0.005 * Math.sin(t * 1.3), 0)), ARM.L.pole, V(0, 0, -1), 1);
       head.rotation.z = 0.1 + 0.04 * Math.sin(t * 1.2); head.rotation.x = 0.14;
-      locks.forEach((l, i) => { l.rotation.z = 0.025 * Math.sin(t * 1.5 + i * 0.7); });
+      HAIR_U.uHT.value = t; HAIR_U.uHeadDz.value = head.rotation.z - 0.1;
     },
   };
 }
