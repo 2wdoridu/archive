@@ -40,7 +40,10 @@ import { buildMan } from "./man.js?v=24";
 // 인스타그램 세로 3:4
 const W = 1080, H = 1440;
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(1);
+// 실제로 보이는 크기만큼만 그린다: 휴대폰 카드 안(폭 300px 안팎)에선 1080px 대신 그 화면 픽셀 수에 맞춰 줄임
+const Q = Math.min(1, Math.max(0.4, innerWidth * Math.min(devicePixelRatio || 1, 2) / W));
+const LITE = Q < 0.8 && matchMedia("(pointer: coarse)").matches;   // 휴대폰·태블릿: 그림자 해상도를 낮추고 초당 30장으로 그림
+renderer.setPixelRatio(Q);
 renderer.setSize(W, H, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -790,7 +793,7 @@ truckCam.position.set(0, 0.2, 6.0);
 truckCam.lookAt(0, 1.45, 0);   // 낮은 데서 올려다봄
 {
   const tSun = new THREE.DirectionalLight("#fff0d8", 1.9);
-  tSun.position.set(-4, 5, 4); tSun.castShadow = true; tSun.shadow.mapSize.set(2048, 2048);
+  tSun.position.set(-4, 5, 4); tSun.castShadow = true; tSun.shadow.mapSize.setScalar(LITE ? 1024 : 2048);
   Object.assign(tSun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 0.5, far: 20 });
   tSun.shadow.bias = -0.0005; tSun.shadow.normalBias = 0.02;
   const tBounce = new THREE.DirectionalLight("#9fb0ff", 0.55); tBounce.position.set(4, 3, -3);
@@ -919,7 +922,7 @@ const SUN_DIR = new THREE.Vector3(-0.6, 0.45, 0.5).normalize();
 const sun = new THREE.DirectionalLight("#fff0d8", 1.9);
 const sunTarget = new THREE.Object3D(); sunTarget.position.set(0, 0, -6); scene.add(sunTarget);
 sun.target = sunTarget; sun.position.copy(sunTarget.position).addScaledVector(SUN_DIR, 60);
-sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+sun.castShadow = true; sun.shadow.mapSize.setScalar(LITE ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 200 });
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05; sun.shadow.radius = 3;
 scene.add(sun);
@@ -1000,7 +1003,7 @@ const DAY = (() => {
 // 화면 처리(sakura-crossing 방식): 배경과 트럭 장면을 각각 색+깊이로 1.5배 해상도에 그림 →
 // 깊이의 2차 차분(라플라시안)으로 실제 윤곽·접힘에만 먹선, 멀수록 옅게 → 트럭을 배경 위에 합성 →
 // 어두운 곳은 보랏빛, 밝은 곳은 따뜻한 종이빛으로 나누는 색 보정
-const PR = 1.5;
+const PR = 1.5 * Q;
 function makeRT() {
   const rt = new THREE.WebGLRenderTarget(W * PR, H * PR, { type: THREE.HalfFloatType });
   rt.depthTexture = new THREE.DepthTexture(W * PR, H * PR); rt.depthTexture.type = THREE.UnsignedIntType;
@@ -1011,7 +1014,7 @@ const post = new THREE.ShaderMaterial({
   uniforms: {
     tBg: { value: rtBg.texture }, dBg: { value: rtBg.depthTexture }, tFg: { value: rtFg.texture }, dFg: { value: rtFg.depthTexture },
     nfBg: { value: new THREE.Vector2(camera.near, camera.far) }, nfFg: { value: new THREE.Vector2(0.05, 80) },
-    texel: { value: new THREE.Vector2(2.2 / (W * PR), 2.2 / (H * PR)) }, ink: { value: new THREE.Color("#3b2c40") },
+    texel: { value: new THREE.Vector2(2.2 / (W * 1.5), 2.2 / (H * 1.5)) }, ink: { value: new THREE.Color("#3b2c40") },
     uNight: { value: 0 }, uDusk: { value: 0 }, uTime: { value: 0 }, uSun: { value: new THREE.Vector2(-1, -1) }, uSunVis: { value: 0 }, uAsp: { value: W / H },
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`,
@@ -1100,6 +1103,8 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
 // 움직임: 풀이 바람에 흔들리고, 먼지가 날리고, 카메라가 아주 천천히 숨 쉬듯 움직임
 // ?zoom=0.9 처럼 주면 장면 전체를 그만큼 작게 보여 준다(상세 카드의 테두리 장식에 가장자리가 가리지 않게)
 { const z = parseFloat(new URLSearchParams(location.search).get("zoom")); if (z > 0) for (const c of [camera, truckCam]) { c.zoom = z; c.updateProjectionMatrix(); } }
+// ?down=0.08 처럼 주면 장면 전체를 화면 높이의 그 비율만큼 아래로 내려 하늘을 더 보인다(배경·트럭 카메라를 같이 옮김)
+{ const d = parseFloat(new URLSearchParams(location.search).get("down")); if (d) { camera.view.offsetY -= d * H; camera.updateProjectionMatrix(); truckCam.setViewOffset(W, H, 0, -d * H, W, H); } }
 const clock = new THREE.Clock();
 // 마우스를 따라 보는 각도가 바뀜. -1~1, 상세 페이지는 틀 기준 위치를 postMessage 로 보냄
 const TILT = { x: 0, y: 0, cx: 0, cy: 0, k: 1, ck: 1 };   // k: 각도 폭 배율(휴대폰 터치는 크게)
@@ -1114,6 +1119,7 @@ const TILT_OFF = CAM.clone().sub(TILT_PIV), TILT_LOOK = LOOK.clone();
 const TILT_RIGHT = new THREE.Vector3().crossVectors(LOOK.clone().sub(CAM), UP).normalize();
 const TRUCK_PIV = new THREE.Vector3(0, 1.45, 0), TRUCK_OFF = new THREE.Vector3(0, 0.2, 6.0).sub(TRUCK_PIV);
 function tick() {
+  if (LITE) { const n = performance.now(); if (n - (tick.last || 0) < 30) { requestAnimationFrame(tick); return; } tick.last = n; }
   const t = clock.getElapsedTime();
   if (t > FLIGHT.next) { if (Math.random() < 0.6) { FLIGHT.start = t; FLIGHT.dir ^= 1; FLIGHT.lift = (Math.random() - 0.5) * 0.8; } FLIGHT.next = t + 60 + Math.random() * 40; }
   DAY.update(t); FAIRIES.forEach(f => f.userData.update(t)); SPARK.update(t); NIGHT_LIGHTS.update(t, DAY.state.night);

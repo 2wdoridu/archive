@@ -189,7 +189,7 @@ const FLIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const FLIP_BTN = `<button type="button" class="card__flip" aria-label="뒷면 보기" aria-pressed="false">${FLIP_ICON}</button>`;
 
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&zoom=0.9&v=20261109-2" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&zoom=0.9&down=0.08&v=20261109-3" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
