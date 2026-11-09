@@ -19,7 +19,7 @@
      --tx, --ty: 카드 가운데 기준 손가락·마우스 위치(-1~1), --on: 기울이는 중이면 1, --fy: 뒤집는 각도, --lift: 뒤집는 동안 떠오름 */
   .detail__media:has(.detail__scene) { perspective: 1400px; }
   .detail__frame:has(.detail__scene) {
-    --tx: 0; --ty: 0; --on: 0; --fy: 0deg; --lift: 0; --pad: 18px;
+    --tx: 0; --ty: 0; --on: 0; --fy: 0deg; --lift: 0; --pad: 24px;
     position: relative; padding: var(--pad); border-radius: 40px; overflow: hidden; isolation: isolate;
     background: #efe4cc;
     transform: rotateY(calc(var(--tx) * 4deg + var(--fy))) rotateX(calc(var(--ty) * -4deg)) scale(calc(1 + var(--lift) * .05));
@@ -32,7 +32,7 @@
   }
   .detail__frame.is-tilt { transition-duration: .12s; }
   .detail__frame.is-flipping { transition: none; }
-  @media (max-width: 600px) { .detail__frame:has(.detail__scene) { --pad: 15px; } }
+  @media (max-width: 600px) { .detail__frame:has(.detail__scene) { --pad: 20px; } }
   /* 빛 반사: 바니시 칠한 종이에 비치듯 은은하게 */
   .detail__frame:has(.detail__scene)::after {
     content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none;
@@ -126,7 +126,7 @@ function cardDeco(s) {
 // 카드 실제 크기(px)로 장식을 그린다. u: 폭 340px 기준 배율
 function drawOrnate(svg, W, H, p) {
   const u = W / 340, x0 = p, y0 = p, x1 = W - p, y1 = H - p, iw = x1 - x0, cx = W / 2;
-  const ah = iw * .3, top = y0 + 3 * u, r = 14 * u, f = n => n.toFixed(1);
+  const ah = iw * .13, top = y0 + 1 * u, r = 14 * u, f = n => n.toFixed(1);
   const archL = `M${f(x0)} ${f(y0 + ah)} C${f(x0)} ${f(y0 + ah * .36)} ${f(cx - iw * .3)} ${f(top)} ${f(cx)} ${f(top)} C${f(cx + iw * .3)} ${f(top)} ${f(x1)} ${f(y0 + ah * .36)} ${f(x1)} ${f(y0 + ah)}`;
   const win = `${archL} V${f(y1 - r)} Q${f(x1)} ${f(y1)} ${f(x1 - r)} ${f(y1)} H${f(x0 + r)} Q${f(x0)} ${f(y1)} ${f(x0)} ${f(y1 - r)} Z`;
   // 덩굴: 3차 곡선을 따라 잎을 번갈아 달고, 군데군데 들꽃을 피운다
@@ -136,7 +136,7 @@ function drawOrnate(svg, W, H, p) {
       + `<path d="M${f(P[0][0])} ${f(P[0][1])} C${P.slice(1).map(q => q.map(f).join(" ")).join(" ")}" fill="none" stroke="url(#gold)" stroke-width="${f(2.2 * u * sc)}" stroke-linecap="round"/>`;
     for (let i = 1; i <= n; i++) {
       const t = i / (n + 1), [a, b] = bez(P, t), [c, d] = bez(P, Math.min(1, t + .01));
-      const ang = Math.atan2(d - b, c - a) * 180 / Math.PI + (i % 2 ? 50 : -50), L = (12 - 4 * t) * u * sc;
+      const ang = Math.atan2(d - b, c - a) * 180 / Math.PI + (i % 2 ? 50 : -50), L = (9 - 3 * t) * u * sc;
       g += `<path transform="translate(${f(a)} ${f(b)}) rotate(${f(ang)})" d="M0 0 C${f(L * .35)} ${f(-L * .42)} ${f(L * .8)} ${f(-L * .3)} ${f(L)} 0 C${f(L * .8)} ${f(L * .3)} ${f(L * .35)} ${f(L * .42)} 0 0 Z" fill="url(#leaf)" stroke="#6f5a2c" stroke-width="${f(.5 * u)}"/>`;
     }
     for (const t of flowers) {
@@ -146,13 +146,13 @@ function drawOrnate(svg, W, H, p) {
     return g;
   };
   const mir = P => P.map(([a, b]) => [W - a, b]);
-  const archVine = [[cx - 16 * u, top + 6 * u], [cx - iw * .2, top + 26 * u], [x0 + 6 * u, y0 - 2 * u], [x0 + 16 * u, y0 + ah * 1.05]];
-  const footVine = [[x0 - 4 * u, y1 + 2 * u], [x0 + 26 * u, y1 - 40 * u], [x0 - 6 * u, y1 - 80 * u], [x0 + 18 * u, y1 - 120 * u]];
+  const archVine = [[cx - 16 * u, y0 - 9 * u], [cx - iw * .3, y0 - 12 * u], [x0 - 4 * u, y0 - 16 * u], [x0 - 10 * u, y0 + ah + 40 * u]];
+  const footVine = [[x0 - 6 * u, y1 + 10 * u], [x0 - 2 * u, y1 - 40 * u], [x0 - 16 * u, y1 - 80 * u], [x0 - 9 * u, y1 - 130 * u]];
   // 아치 위 모서리의 금박 소용돌이(C 스크롤)
   const scroll = dir => {
-    const ox = dir > 0 ? x0 + 15 * u : x1 - 15 * u, oy = y0 + 15 * u;
+    const ox = dir > 0 ? x0 + 4 * u : x1 - 4 * u, oy = y0 + 2 * u;
     let d = "";
-    for (let i = 0; i <= 40; i++) { const q = i / 40 * Math.PI * 3, R = 11 * u * (1 - i / 52);
+    for (let i = 0; i <= 40; i++) { const q = i / 40 * Math.PI * 3, R = 7 * u * (1 - i / 52);
       d += (i ? "L" : "M") + f(ox + dir * Math.cos(q + Math.PI) * R) + " " + f(oy - Math.sin(q + Math.PI) * R * .9); }
     const tail = `M${f(ox + dir * 11 * u)} ${f(oy)} C${f(ox + dir * 26 * u)} ${f(oy + 2 * u)} ${f(ox + dir * 34 * u)} ${f(oy - 8 * u)} ${f(ox + dir * 48 * u)} ${f(oy - 6 * u)}`;
     return `<g fill="none" stroke-linecap="round"><path d="${d} ${tail}" stroke="#7a5a2e" stroke-opacity=".55" stroke-width="${f(3.2 * u)}"/><path d="${d} ${tail}" stroke="url(#gold)" stroke-width="${f(2 * u)}"/></g>
@@ -189,7 +189,7 @@ const FLIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const FLIP_BTN = `<button type="button" class="card__flip" aria-label="뒷면 보기" aria-pressed="false">${FLIP_ICON}</button>`;
 
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&v=20261109-1" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&zoom=0.9&v=20261109-2" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>

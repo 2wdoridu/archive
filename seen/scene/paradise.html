@@ -931,7 +931,7 @@ scene.add(sun);
 // ── 하루 흐름: 해가 왼쪽 산 너머에서 떠서 하늘을 가로질러 오른쪽 산 너머로 지고, 노을이 지나 별이 뜨는 밤이 됐다가 다시 새벽
 const _UP = new THREE.Vector3(0, 1, 0), _XA = new THREE.Vector3(1, 0, 0);
 const DAY = (() => {
-  const T = 180, START = 4;   // 한 바퀴 3분: 낮 60초 → 저물기 30초 → 밤 60초 → 밝아오기 30초. 열면 낮에서 시작
+  const T = 360, START = 8;   // 한 바퀴 6분: 낮 120초 → 저물기 60초 → 밤 120초 → 밝아오기 60초. 열면 낮에서 시작
   const glowTex = (inner, stops) => { const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d"), g = x.createRadialGradient(128, 128, 0, 128, 128, 128); stops.forEach(([o, col]) => g.addColorStop(o, col)); x.fillStyle = g; x.fillRect(0, 0, 256, 256); if (inner) inner(x); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
   const sunTex = glowTex(null, [[0, "rgba(255,255,250,1)"], [0.17, "rgba(255,250,235,1)"], [0.2, "rgba(255,236,200,0.75)"], [0.32, "rgba(255,220,170,0.28)"], [0.6, "rgba(255,210,160,0.08)"], [1, "rgba(255,200,150,0)"]]);
   // 보름달: 살짝 노르스름한 둥근 달과 푸른 달무리, 옅은 얼룩
@@ -951,7 +951,7 @@ const DAY = (() => {
     state: { night: 0, dusk: 0 },
     update(t) {
       if (!cam0) { cam0 = camera.clone(); cam0.updateMatrixWorld(); for (const g of ["bg", "truck"]) for (const [k, l] of Object.entries(LIT[g])) base[g + k] = { c: l.color.clone(), i: l.intensity, gc: l.groundColor && l.groundColor.clone() }; }
-      const tau = (((t + START + (window.__dayOff || 0)) % T) + T) % T;   // __dayOff: 점검용으로 시간 건너뛰기
+      const tau = ((((t + START + (window.__dayOff || 0)) % T) + T) % T) / 2;   // 아래 구간은 3분 기준으로 적혀 있어 반으로 나눠 씀. __dayOff: 점검용으로 시간 건너뛰기
       const ss = x => x * x * (3 - 2 * x);
       // 해 자리 s: 0 = 왼쪽 산 너머(뜸), 1 = 오른쪽 산 너머(짐). 낮 동안은 하늘 높은 곳을 천천히 건넘
       let elev, sunS_ = -9, moonQ = -1;
@@ -1098,6 +1098,8 @@ const postScene = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 
 postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
 
 // 움직임: 풀이 바람에 흔들리고, 먼지가 날리고, 카메라가 아주 천천히 숨 쉬듯 움직임
+// ?zoom=0.9 처럼 주면 장면 전체를 그만큼 작게 보여 준다(상세 카드의 테두리 장식에 가장자리가 가리지 않게)
+{ const z = parseFloat(new URLSearchParams(location.search).get("zoom")); if (z > 0) for (const c of [camera, truckCam]) { c.zoom = z; c.updateProjectionMatrix(); } }
 const clock = new THREE.Clock();
 // 마우스를 따라 보는 각도가 바뀜. -1~1, 상세 페이지는 틀 기준 위치를 postMessage 로 보냄
 const TILT = { x: 0, y: 0, cx: 0, cy: 0, k: 1, ck: 1 };   // k: 각도 폭 배율(휴대폰 터치는 크게)
