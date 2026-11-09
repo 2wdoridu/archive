@@ -1100,12 +1100,12 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
 // 움직임: 풀이 바람에 흔들리고, 먼지가 날리고, 카메라가 아주 천천히 숨 쉬듯 움직임
 const clock = new THREE.Clock();
 // 마우스를 따라 보는 각도가 바뀜. -1~1, 상세 페이지는 틀 기준 위치를 postMessage 로 보냄
-const TILT = { x: 0, y: 0, cx: 0, cy: 0 };
+const TILT = { x: 0, y: 0, cx: 0, cy: 0, k: 1, ck: 1 };   // k: 각도 폭 배율(휴대폰 터치는 크게)
 if (!document.documentElement.classList.contains("embed")) {
   addEventListener("mousemove", e => { TILT.x = e.clientX / innerWidth * 2 - 1; TILT.y = e.clientY / innerHeight * 2 - 1; });
   document.addEventListener("mouseleave", () => { TILT.x = TILT.y = 0; });
 }
-addEventListener("message", e => { if (e.origin === location.origin && e.data && e.data.type === "tilt") { TILT.x = e.data.x; TILT.y = e.data.y; } });
+addEventListener("message", e => { if (e.origin === location.origin && e.data && e.data.type === "tilt") { TILT.x = e.data.x; TILT.y = e.data.y; if (e.data.k) TILT.k = e.data.k; } });
 const UP = new THREE.Vector3(0, 1, 0), X_AX = new THREE.Vector3(1, 0, 0);
 const TILT_PIV = CAM.clone().add(LOOK.clone().sub(CAM).setLength(9.5));   // 시선이 바위에 닿는 곳
 const TILT_OFF = CAM.clone().sub(TILT_PIV), TILT_LOOK = LOOK.clone();
@@ -1124,9 +1124,9 @@ function tick() {
   dustGeo.attributes.position.needsUpdate = true;
   wind.value = t;
   // 아주 작게 숨 쉬듯 흔들림(바위가 사진 자리에서 거의 벗어나지 않을 만큼)
-  TILT.cx += (TILT.x - TILT.cx) * 0.06; TILT.cy += (TILT.y - TILT.cy) * 0.06;
+  TILT.cx += (TILT.x - TILT.cx) * 0.06; TILT.cy += (TILT.y - TILT.cy) * 0.06; TILT.ck += (TILT.k - TILT.ck) * 0.06;
   // 트럭 카메라는 트럭을, 배경 카메라는 바위를 중심으로 같은 각도만큼 돈다 → 바위와 트럭이 한 덩어리로 움직이고 먼 산만 어긋남
-  const yaw = TILT.cx * 0.07, pitch = -TILT.cy * 0.02;
+  const yaw = TILT.cx * 0.07 * TILT.ck, pitch = -TILT.cy * 0.02 * TILT.ck;
   { const o = TILT_OFF.clone().applyAxisAngle(TILT_RIGHT, -pitch).applyAxisAngle(UP, yaw);
     camera.position.copy(TILT_PIV).add(o); camera.position.x += Math.sin(t * 0.13) * 0.08; camera.position.y += Math.sin(t * 0.17) * 0.04;
     camera.lookAt(TILT_LOOK.clone().sub(TILT_PIV).applyAxisAngle(TILT_RIGHT, -pitch).applyAxisAngle(UP, yaw).add(TILT_PIV)); }
