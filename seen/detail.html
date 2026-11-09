@@ -49,13 +49,14 @@
   .detail__frame.is-back .card__back { display: block; }
   /* 뒤집기 버튼: 카드 아래 가운데 동그라미. 앞면에서 5초 동안 아무 동작이 없으면 아래로 내려가며 사라진다 */
   .card__flip {
-    position: absolute; z-index: 10; left: 50%; bottom: 30px; width: 46px; height: 46px; padding: 0;
-    display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: #5a2c45;
-    background: rgb(255 255 255 / .72); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
-    border: 1px solid rgb(255 255 255 / .95); box-shadow: 0 6px 18px -4px rgb(70 30 70 / .4), inset 0 -1px 0 rgb(120 60 90 / .15);
-    transform: translateX(-50%); transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s;
+    position: absolute; z-index: 10; left: 50%; bottom: 26px; width: 32px; height: 32px; padding: 0;
+    display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: rgb(90 66 34 / .75);
+    background: rgb(243 234 214 / .45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    border: 1px solid rgb(199 154 79 / .45); box-shadow: 0 2px 6px -2px rgb(60 40 30 / .25);
+    opacity: .8; transform: translateX(-50%); transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s;
   }
-  .card__flip svg { width: 22px; height: 22px; }
+  .card__flip svg { width: 15px; height: 15px; }
+  .card__flip:hover, .card__flip:focus-visible { opacity: 1; }
   .card__flip:active { transform: translateX(-50%) scale(.92); }
   .card__flip.is-away { transform: translate(-50%, 36px); opacity: 0; pointer-events: none; }
   /* 애플식 연속 곡률(스쿼클)을 지원하는 브라우저: 같은 크기여도 모서리가 작아 보여 값을 키운다 */
