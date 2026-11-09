@@ -14,49 +14,53 @@
   .detail__media img { aspect-ratio: 3 / 4; object-fit: cover; }
   /* 3D 장면 항목: 화면 높이에 맞춘 3:4 틀에 장면을 띄움 */
   .detail__frame:has(.detail__scene) { width: min(100%, calc((100vh - 120px) * 0.75)); }
-  /* 장면 카드: 포켓몬 홀로 카드처럼 펄 테두리 위에 무지갯빛 박이 비치고, 기울이면 빛과 그림자가 따라 움직인다
-     --tx, --ty: 카드 가운데 기준 손가락·마우스 위치(-1~1), --on: 기울이는 중이면 1 */
+  /* 장면 카드: 옛 삽화 카드처럼 상아색 종이 판에 아치 창을 내고, 금박 선·해 메달·덩굴(장면의 풀·들꽃과 같은 색)이 그림 안으로 들어온다.
+     장식은 카드 크기에 맞춰 스크립트가 그린다(.card__ornate).
+     --tx, --ty: 카드 가운데 기준 손가락·마우스 위치(-1~1), --on: 기울이는 중이면 1, --fy: 뒤집는 각도, --lift: 뒤집는 동안 떠오름 */
   .detail__media:has(.detail__scene) { perspective: 1400px; }
   .detail__frame:has(.detail__scene) {
-    --tx: 0; --ty: 0; --on: 0;
-    position: relative; padding: 11px; border-radius: 40px; isolation: isolate;
-    background:
-      linear-gradient(160deg, rgb(255 255 255 / .95), rgb(255 255 255 / 0) 40%),
-      linear-gradient(200deg, #f7f3fb 0%, #ece6f2 40%, #e3dbe6 70%, #efe9e3 100%);
-    transform: rotateY(calc(var(--tx) * 11deg)) rotateX(calc(var(--ty) * -11deg)) scale(calc(1 + var(--on) * .015));
+    --tx: 0; --ty: 0; --on: 0; --fy: 0deg; --lift: 0; --pad: 18px;
+    position: relative; padding: var(--pad); border-radius: 40px; overflow: hidden; isolation: isolate;
+    background: #efe4cc;
+    transform: rotateY(calc(var(--tx) * 4deg + var(--fy))) rotateX(calc(var(--ty) * -4deg)) scale(calc(1 + var(--lift) * .05));
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255), inset 0 -1px 0 rgb(120 100 140 / .18),
-      0 1px 1px rgb(60 40 90 / .10),
-      calc(var(--tx) * -6px) calc(6px - var(--ty) * 4px) 14px -6px rgb(60 40 90 / .22),
-      calc(var(--tx) * -22px) calc(26px - var(--ty) * 14px) 50px -22px rgb(90 60 150 / .38);
+      0 1px 1px rgb(60 40 30 / .14),
+      calc(var(--tx) * -3px) calc(6px - var(--ty) * 2px) 14px -6px rgb(60 40 40 / .3),
+      calc(var(--tx) * -10px) calc(26px - var(--ty) * 6px + var(--lift) * 30px) 50px -22px rgb(80 50 70 / .45);
     transition: transform .7s cubic-bezier(.2, .8, .2, 1), box-shadow .7s cubic-bezier(.2, .8, .2, 1);
     touch-action: none; -webkit-user-select: none; user-select: none;
   }
   .detail__frame.is-tilt { transition-duration: .12s; }
-  /* 테두리에만 보이는 홀로 박: 장면이 위를 덮으므로 테두리 띠에서만 드러난다 */
-  .detail__frame:has(.detail__scene)::before {
-    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; corner-shape: inherit;
-    background:
-      repeating-linear-gradient(115deg, #ffb3dc 0%, #b9d8ff 6%, #b8f5dc 12%, #fff0b0 18%, #e2c0ff 24%, #ffb3dc 30%),
-      repeating-linear-gradient(25deg, rgb(255 255 255 / .0) 0 3px, rgb(255 255 255 / .35) 3px 4px);
-    background-size: 260% 260%, 100% 100%;
-    background-position: calc(50% + var(--tx) * 40%) calc(50% + var(--ty) * 40%), 0 0;
-    mix-blend-mode: multiply; opacity: calc(.45 + var(--on) * .35);
-    transition: opacity .5s, background-position .7s cubic-bezier(.2, .8, .2, 1);
-  }
-  /* 빛 반사: 손가락·마우스가 있는 쪽이 밝아진다 */
+  .detail__frame.is-flipping { transition: none; }
+  @media (max-width: 600px) { .detail__frame:has(.detail__scene) { --pad: 15px; } }
+  /* 빛 반사: 바니시 칠한 종이에 비치듯 은은하게 */
   .detail__frame:has(.detail__scene)::after {
-    content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; corner-shape: inherit; pointer-events: none;
+    content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none;
     background: radial-gradient(farthest-corner circle at calc(50% + var(--tx) * 50%) calc(50% + var(--ty) * 50%),
-      rgb(255 255 255 / .55) 0%, rgb(255 255 255 / .18) 22%, rgb(255 255 255 / 0) 55%);
-    mix-blend-mode: soft-light; opacity: calc(.25 + var(--on) * .75); transition: opacity .5s;
+      rgb(255 250 235 / .5) 0%, rgb(255 250 235 / .12) 25%, rgb(255 250 235 / 0) 55%);
+    mix-blend-mode: soft-light; opacity: calc(.35 + var(--on) * .5); transition: opacity .5s;
   }
-  .detail__scene { position: relative; z-index: 1; display: block; width: 100%; aspect-ratio: 3 / 4; border: 0; border-radius: 30px; pointer-events: none;
-    box-shadow: 0 0 0 1px rgb(255 255 255 / .85), 0 0 0 3px rgb(150 120 180 / .35), 0 0 0 4px rgb(255 255 255 / .6); }
+  .card__ornate { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
+  .detail__scene { position: relative; z-index: 1; display: block; width: 100%; aspect-ratio: 3 / 4; border: 0; pointer-events: none; }
+  /* 뒷면: 콘서트 티켓 */
+  .card__back { display: none; position: absolute; z-index: 1; inset: var(--pad); overflow: hidden; }
+  .card__back svg { display: block; width: 100%; height: 100%; }
+  .detail__frame.is-back .detail__scene { visibility: hidden; }
+  .detail__frame.is-back .card__back { display: block; }
+  /* 뒤집기 버튼: 카드 아래 가운데 동그라미. 앞면에서 5초 동안 아무 동작이 없으면 아래로 내려가며 사라진다 */
+  .card__flip {
+    position: absolute; z-index: 10; left: 50%; bottom: 30px; width: 46px; height: 46px; padding: 0;
+    display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: #5a2c45;
+    background: rgb(255 255 255 / .72); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
+    border: 1px solid rgb(255 255 255 / .95); box-shadow: 0 6px 18px -4px rgb(70 30 70 / .4), inset 0 -1px 0 rgb(120 60 90 / .15);
+    transform: translateX(-50%); transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s;
+  }
+  .card__flip svg { width: 22px; height: 22px; }
+  .card__flip:active { transform: translateX(-50%) scale(.92); }
+  .card__flip.is-away { transform: translate(-50%, 36px); opacity: 0; pointer-events: none; }
   /* 애플식 연속 곡률(스쿼클)을 지원하는 브라우저: 같은 크기여도 모서리가 작아 보여 값을 키운다 */
   @supports (corner-shape: squircle) {
     .detail__frame:has(.detail__scene) { border-radius: 64px; corner-shape: squircle; }
-    .detail__scene { border-radius: 53px; corner-shape: squircle; }
   }
 </style>
 </head>
@@ -73,15 +77,118 @@
 <main class="detail" id="post"></main>
 <nav class="pager"></nav>
 
-<script src="data.js?v=20261108-3"></script>
+<script src="data.js?v=20261109-1"></script>
 <script>
 const id = new URLSearchParams(location.search).get("id");
 const i = Math.max(0, SEEN.findIndex(s => s.id === id));
 const s = SEEN[i];
 const prev = SEEN[i - 1], next = SEEN[i + 1];
 document.title = `${s.title} — 2w_doridu Archive`;
+// 카드 장식: 아치 창, 금박 선, 해 메달, 덩굴. 뒷면은 티켓
+function ticketSVG(s) {
+  const [y, m, d] = s.date.split(".").map(Number);
+  const wd = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(y, m - 1, d).getDay()];
+  let h = 0; for (const c of s.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  let bars = "", x = 182;
+  while (x < 280) { h = (h * 1103515245 + 12345) >>> 0; const w = 1 + (h >>> 28) % 3; bars += `<rect x="${x}" y="330" width="${w}" height="40" fill="#3b2140"/>`; x += w + 1 + (h >>> 24) % 3; }
+  return `<svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" font-family="Archivo, Pretendard, 'Apple SD Gothic Neo', sans-serif">
+  <defs>
+    <linearGradient id="tsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6f78cf"/><stop offset=".55" stop-color="#b9a0d8"/><stop offset="1" stop-color="#f2c2b0"/></linearGradient>
+    <radialGradient id="tsun" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff8e8"/><stop offset=".45" stop-color="#ffe7c9" stop-opacity=".9"/><stop offset="1" stop-color="#ffd7c0" stop-opacity="0"/></radialGradient>
+    <pattern id="tdot" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".6" fill="#7a3d55" fill-opacity=".08"/></pattern>
+  </defs>
+  <rect width="300" height="400" fill="#fbf4ee"/><rect width="300" height="400" fill="url(#tdot)"/>
+  <rect width="300" height="158" fill="url(#tsky)"/>
+  <circle cx="92" cy="74" r="44" fill="url(#tsun)"/><circle cx="92" cy="74" r="15" fill="#fffaf0"/>
+  ${[[214,28],[248,52],[176,40],[268,22],[36,30],[130,20]].map(([a,b],k)=>`<path d="M${a} ${b-4} L${a+1} ${b-1} L${a+4} ${b} L${a+1} ${b+1} L${a} ${b+4} L${a-1} ${b+1} L${a-4} ${b} L${a-1} ${b-1} Z" fill="#fff" fill-opacity="${.55+.1*k%.4}"/>`).join("")}
+  <path d="M0 112 L34 92 L58 104 L96 78 L128 100 L160 86 L196 106 L232 84 L268 100 L300 90 V158 H0 Z" fill="#c99aae"/>
+  <path d="M0 130 L46 112 L84 126 L122 108 L170 128 L214 114 L258 130 L300 118 V158 H0 Z" fill="#a9788f"/>
+  <path d="M0 158 L0 146 C60 138 110 150 150 144 C196 138 250 150 300 142 L300 158 Z" fill="#e8b4a0"/>
+  <path d="M138 158 C146 150 156 146 170 144 L176 145 C162 148 152 152 150 158 Z" fill="#fbf4ee" fill-opacity=".85"/>
+  <text x="22" y="186" font-size="9" letter-spacing="2.6" fill="#8a5a72" font-weight="600">AKMU 2026 CONCERT</text>
+  <text x="20" y="214" font-size="31" font-weight="800" fill="#3b2140" letter-spacing="-.5">${s.title}</text>
+  <line x1="22" y1="227" x2="278" y2="227" stroke="#3b2140" stroke-opacity=".18"/>
+  <g font-size="7.5" letter-spacing="1.6" fill="#8a5a72" font-weight="600"><text x="22" y="244">DATE</text><text x="150" y="244">TIME</text><text x="22" y="279">VENUE</text></g>
+  <g font-size="13" fill="#3b2140" font-weight="700"><text x="22" y="260">${s.date} ${wd}</text><text x="150" y="260">${s.time || ""}</text></g>
+  <text x="22" y="295" font-size="11.5" fill="#3b2140" font-weight="600">${s.place}</text>
+  <line x1="24" y1="316" x2="276" y2="316" stroke="#3b2140" stroke-opacity=".35" stroke-width="1.2" stroke-dasharray="1.5 4" stroke-linecap="round"/>
+  <circle cx="0" cy="316" r="11" fill="#d7a9a2"/><circle cx="300" cy="316" r="11" fill="#d7a9a2"/>
+  <text x="22" y="344" font-size="15" font-weight="800" letter-spacing="1.5" fill="#3b2140">ADMIT ONE</text>
+  <text x="22" y="358" font-size="8" letter-spacing="1.2" fill="#8a5a72">${s.by} · ${s.title}</text>
+  ${bars}
+  <rect x="0" y="388" width="300" height="12" fill="url(#tsky)"/>
+</svg>`;
+}
+function cardDeco(s) {
+  return `<svg class="card__ornate" aria-hidden="true"></svg><div class="card__back" aria-hidden="true">${ticketSVG(s)}</div>`;
+}
+// 카드 실제 크기(px)로 장식을 그린다. u: 폭 340px 기준 배율
+function drawOrnate(svg, W, H, p) {
+  const u = W / 340, x0 = p, y0 = p, x1 = W - p, y1 = H - p, iw = x1 - x0, cx = W / 2;
+  const ah = iw * .3, top = y0 + 3 * u, r = 14 * u, f = n => n.toFixed(1);
+  const archL = `M${f(x0)} ${f(y0 + ah)} C${f(x0)} ${f(y0 + ah * .36)} ${f(cx - iw * .3)} ${f(top)} ${f(cx)} ${f(top)} C${f(cx + iw * .3)} ${f(top)} ${f(x1)} ${f(y0 + ah * .36)} ${f(x1)} ${f(y0 + ah)}`;
+  const win = `${archL} V${f(y1 - r)} Q${f(x1)} ${f(y1)} ${f(x1 - r)} ${f(y1)} H${f(x0 + r)} Q${f(x0)} ${f(y1)} ${f(x0)} ${f(y1 - r)} Z`;
+  // 덩굴: 3차 곡선을 따라 잎을 번갈아 달고, 군데군데 들꽃을 피운다
+  const bez = (P, t) => { const m = 1 - t; return [0, 1].map(k => m*m*m*P[0][k] + 3*m*m*t*P[1][k] + 3*m*t*t*P[2][k] + t*t*t*P[3][k]); };
+  const vine = (P, n, flowers, sc = 1) => {
+    let g = `<path d="M${f(P[0][0])} ${f(P[0][1])} C${P.slice(1).map(q => q.map(f).join(" ")).join(" ")}" fill="none" stroke="#7a5a2e" stroke-width="${f(3.4 * u * sc)}" stroke-linecap="round" stroke-opacity=".55"/>`
+      + `<path d="M${f(P[0][0])} ${f(P[0][1])} C${P.slice(1).map(q => q.map(f).join(" ")).join(" ")}" fill="none" stroke="url(#gold)" stroke-width="${f(2.2 * u * sc)}" stroke-linecap="round"/>`;
+    for (let i = 1; i <= n; i++) {
+      const t = i / (n + 1), [a, b] = bez(P, t), [c, d] = bez(P, Math.min(1, t + .01));
+      const ang = Math.atan2(d - b, c - a) * 180 / Math.PI + (i % 2 ? 50 : -50), L = (12 - 4 * t) * u * sc;
+      g += `<path transform="translate(${f(a)} ${f(b)}) rotate(${f(ang)})" d="M0 0 C${f(L * .35)} ${f(-L * .42)} ${f(L * .8)} ${f(-L * .3)} ${f(L)} 0 C${f(L * .8)} ${f(L * .3)} ${f(L * .35)} ${f(L * .42)} 0 0 Z" fill="url(#leaf)" stroke="#6f5a2c" stroke-width="${f(.5 * u)}"/>`;
+    }
+    for (const t of flowers) {
+      const [a, b] = bez(P, t), R = 5 * u * sc;
+      g += `<g transform="translate(${f(a)} ${f(b)})">${[0, 72, 144, 216, 288].map(q => `<ellipse rx="${f(R * .62)}" ry="${f(R * .38)}" cx="${f(R * .62)}" transform="rotate(${q})" fill="#dba7b2" stroke="#9b6070" stroke-width="${f(.4 * u)}"/>`).join("")}<circle r="${f(R * .32)}" fill="#e9c97d"/></g>`;
+    }
+    return g;
+  };
+  const mir = P => P.map(([a, b]) => [W - a, b]);
+  const archVine = [[cx - 16 * u, top + 6 * u], [cx - iw * .2, top + 26 * u], [x0 + 6 * u, y0 - 2 * u], [x0 + 16 * u, y0 + ah * 1.05]];
+  const footVine = [[x0 - 4 * u, y1 + 2 * u], [x0 + 26 * u, y1 - 40 * u], [x0 - 6 * u, y1 - 80 * u], [x0 + 18 * u, y1 - 120 * u]];
+  // 아치 위 모서리의 금박 소용돌이(C 스크롤)
+  const scroll = dir => {
+    const ox = dir > 0 ? x0 + 15 * u : x1 - 15 * u, oy = y0 + 15 * u;
+    let d = "";
+    for (let i = 0; i <= 40; i++) { const q = i / 40 * Math.PI * 3, R = 11 * u * (1 - i / 52);
+      d += (i ? "L" : "M") + f(ox + dir * Math.cos(q + Math.PI) * R) + " " + f(oy - Math.sin(q + Math.PI) * R * .9); }
+    const tail = `M${f(ox + dir * 11 * u)} ${f(oy)} C${f(ox + dir * 26 * u)} ${f(oy + 2 * u)} ${f(ox + dir * 34 * u)} ${f(oy - 8 * u)} ${f(ox + dir * 48 * u)} ${f(oy - 6 * u)}`;
+    return `<g fill="none" stroke-linecap="round"><path d="${d} ${tail}" stroke="#7a5a2e" stroke-opacity=".55" stroke-width="${f(3.2 * u)}"/><path d="${d} ${tail}" stroke="url(#gold)" stroke-width="${f(2 * u)}"/></g>
+      <circle cx="${f(ox + dir * 48 * u)}" cy="${f(oy - 6 * u)}" r="${f(2 * u)}" fill="url(#gold)" stroke="#6f5a2c" stroke-width="${f(.4 * u)}"/>`;
+  };
+  // 해 메달(장면의 해와 같은 모양)
+  const rays = Array.from({ length: 16 }, (_, k) => { const q = k * Math.PI / 8, R0 = 11 * u, R1 = (k % 2 ? 15 : 19) * u, w = .16;
+    return `M${f(cx + Math.cos(q - w) * R0)} ${f(top + Math.sin(q - w) * R0)} L${f(cx + Math.cos(q) * R1)} ${f(top + Math.sin(q) * R1)} L${f(cx + Math.cos(q + w) * R0)} ${f(top + Math.sin(q + w) * R0)}Z`; }).join("");
+  const fleur = y => [x0 / 2, W - x0 / 2].map(x => `<path d="M${f(x)} ${f(y - 9 * u)} C${f(x + 3 * u)} ${f(y - 3 * u)} ${f(x + 3 * u)} ${f(y + 3 * u)} ${f(x)} ${f(y + 9 * u)} C${f(x - 3 * u)} ${f(y + 3 * u)} ${f(x - 3 * u)} ${f(y - 3 * u)} ${f(x)} ${f(y - 9 * u)}Z" fill="url(#gold)" stroke="#6f5a2c" stroke-width="${f(.5 * u)}"/><circle cx="${f(x)}" cy="${f(y)}" r="${f(1.4 * u)}" fill="#7a5a2e"/>`).join("");
+  svg.setAttribute("viewBox", `0 0 ${f(W)} ${f(H)}`);
+  svg.innerHTML = `<defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4e2a8"/><stop offset=".35" stop-color="#c79a4f"/><stop offset=".55" stop-color="#f1d995"/><stop offset=".8" stop-color="#a77a38"/><stop offset="1" stop-color="#e3c47e"/></linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3ead6"/><stop offset=".6" stop-color="#ece0c6"/><stop offset="1" stop-color="#e2d2b2"/></linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7f9068"/><stop offset="1" stop-color="#b3bd8e"/></linearGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .45  0 0 0 0 .35  0 0 0 0 .25  0 0 0 .09 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+  </defs>
+  <path d="M0 0 H${f(W)} V${f(H)} H0 Z ${win}" fill="url(#paper)" fill-rule="evenodd"/>
+  <path d="M0 0 H${f(W)} V${f(H)} H0 Z ${win}" fill="#000" fill-rule="evenodd" filter="url(#grain)"/>
+  <path d="${win}" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="${f(6 * u)}" transform="translate(0 ${f(1 * u)})"/>
+  <path d="${win}" fill="none" stroke="url(#gold)" stroke-width="${f(3.4 * u)}"/>
+  <path d="${win}" fill="none" stroke="#6b4b22" stroke-width="${f(.7 * u)}"/>
+  <rect x="${f(6 * u)}" y="${f(6 * u)}" width="${f(W - 12 * u)}" height="${f(H - 12 * u)}" rx="${f(30 * u)}" fill="none" stroke="url(#gold)" stroke-width="${f(1.3 * u)}"/>
+  <rect x="${f(9 * u)}" y="${f(9 * u)}" width="${f(W - 18 * u)}" height="${f(H - 18 * u)}" rx="${f(27 * u)}" fill="none" stroke="#8a6a3a" stroke-opacity=".5" stroke-width="${f(.6 * u)}"/>
+  ${scroll(1)}${scroll(-1)}
+  ${vine(archVine, 9, [.22, .5, .82])}${vine(mir(archVine), 9, [.22, .5, .82])}
+  ${vine(footVine, 7, [.35, .7, .98], 1.1)}${vine(mir(footVine), 7, [.3, .62, .96], 1.1)}
+  ${fleur(H * .5)}
+  <path d="${rays}" fill="url(#gold)" stroke="#6f5a2c" stroke-width="${f(.4 * u)}"/>
+  <circle cx="${f(cx)}" cy="${f(top)}" r="${f(11 * u)}" fill="url(#gold)" stroke="#6b4b22" stroke-width="${f(.8 * u)}"/>
+  <circle cx="${f(cx)}" cy="${f(top)}" r="${f(7 * u)}" fill="#f6ead0" stroke="#a77a38" stroke-width="${f(.6 * u)}"/>
+  <circle cx="${f(cx)}" cy="${f(top)}" r="${f(3.2 * u)}" fill="#dba7b2"/>`;
+}
+const FLIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 14-4.5"/><path d="M18 3v4h-4"/><path d="M20 13a8 8 0 0 1-14 4.5"/><path d="M6 21v-4h4"/></svg>`;
+const FLIP_BTN = `<button type="button" class="card__flip" aria-label="뒷면 보기" aria-pressed="false">${FLIP_ICON}</button>`;
+
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&v=20261109-1" title="${s.title}"></iframe>` : `<img src="${s.img}" alt="${s.title}">`}</div></div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&v=20261109-1" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
@@ -90,6 +197,12 @@ document.getElementById("post").innerHTML = `
 
 // 마우스 위치(틀 가운데 기준 -1~1)를 장면에 보내 보는 각도를 바꾼다. 카드 위에 있으면 카드도 그쪽으로 기운다
 const scene = document.querySelector(".detail__scene");
+const ornate = document.querySelector(".card__ornate");
+if (ornate) {
+  const fr = ornate.parentElement;
+  const redraw = () => drawOrnate(ornate, fr.offsetWidth, fr.offsetHeight, parseFloat(getComputedStyle(fr).paddingLeft));
+  new ResizeObserver(redraw).observe(fr); redraw();
+}
 if (scene) {
   const card = scene.parentElement;
   const send = (x, y, k = 1) => scene.contentWindow.postMessage({ type: "tilt", x, y, k }, location.origin);
@@ -101,17 +214,43 @@ if (scene) {
   addEventListener("mousemove", e => {
     box = card.getBoundingClientRect();
     const [x, y] = at(e.clientX, e.clientY);
-    send(x, y);
+    send(x, y, 2.2);
     if (card.matches(":hover")) lean(x, y); else rest();
   });
   document.documentElement.addEventListener("mouseleave", () => { send(0, 0); rest(); });
   // 휴대폰: 카드 위를 손가락으로 끌면 카드가 기울고 장면 시점이 크게(2.5배) 돈다. 떼면 가운데로 돌아온다
-  const touchAt = t => { const [x, y] = at(t.clientX, t.clientY); send(x, y, 2.5); lean(x, y); };
+  const touchAt = t => { const [x, y] = at(t.clientX, t.clientY); send(x, y, 3.2); lean(x, y); };
   card.addEventListener("touchstart", e => { box = card.getBoundingClientRect(); touchAt(e.touches[0]); }, { passive: true });
   card.addEventListener("touchmove", e => { e.preventDefault(); touchAt(e.touches[0]); }, { passive: false });
-  const end = () => { send(0, 0, 2.5); rest(); };
+  const end = () => { send(0, 0, 3.2); rest(); };
   card.addEventListener("touchend", end);
   card.addEventListener("touchcancel", end);
+
+  // 뒤집기: 90도까지 돌린 순간 앞뒤를 바꾸고 나머지 90도를 마저 돈다
+  const btn = document.querySelector(".card__flip");
+  let back = false, flipping = false, idle;
+  const wake = () => {
+    btn.classList.remove("is-away"); clearTimeout(idle);
+    if (!back) idle = setTimeout(() => btn.classList.add("is-away"), 5000);
+  };
+  btn.addEventListener("click", () => {
+    if (flipping) return; flipping = true; card.classList.add("is-flipping");
+    const dir = back ? -1 : 1, t0 = performance.now(), D = 800; let swapped = false;
+    const step = now => {
+      const p = Math.min(1, (now - t0) / D), e = p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2, a = e * 180;
+      if (a >= 90 && !swapped) {
+        swapped = true; back = !back; card.classList.toggle("is-back", back);
+        btn.setAttribute("aria-label", back ? "앞면 보기" : "뒷면 보기"); btn.setAttribute("aria-pressed", back);
+      }
+      card.style.setProperty("--fy", (dir * (a < 90 ? a : a - 180)).toFixed(2) + "deg");
+      card.style.setProperty("--lift", Math.sin(p * Math.PI).toFixed(3));
+      if (p < 1) requestAnimationFrame(step);
+      else { card.style.setProperty("--fy", "0deg"); card.style.setProperty("--lift", 0); card.classList.remove("is-flipping"); flipping = false; wake(); }
+    };
+    requestAnimationFrame(step);
+  });
+  for (const ev of ["scroll", "wheel", "touchstart", "mousemove", "pointerdown", "keydown"]) addEventListener(ev, wake, { passive: true });
+  wake();
 }
 
 // 닫기: 목록에서 넘어왔으면 이전 화면으로, 링크로 바로 들어왔으면 목록으로 간다
