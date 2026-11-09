@@ -39,14 +39,15 @@ import { buildMan } from "./man.js?v=24";
 
 // 인스타그램 세로 3:4
 const W = 1080, H = 1440;
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 // 실제로 보이는 크기만큼만 그린다: 휴대폰 카드 안(폭 300px 안팎)에선 1080px 대신 그 화면 픽셀 수에 맞춰 줄임
 const Q = Math.min(1, Math.max(0.4, innerWidth * Math.min(devicePixelRatio || 1, 2) / W));
-const LITE = Q < 0.8 && matchMedia("(pointer: coarse)").matches;   // 휴대폰·태블릿: 그림자 해상도를 낮추고 초당 30장으로 그림
+// 휴대폰·태블릿: 그림자 해상도·부드럽게 하기를 낮추고, 중간 그림을 화면 크기 그대로 그리고, 초당 30장으로 그림
+const LITE = Q < 0.8 && matchMedia("(pointer: coarse)").matches;
+const renderer = new THREE.WebGLRenderer({ antialias: !LITE, preserveDrawingBuffer: !LITE, powerPreference: "high-performance" });
 renderer.setPixelRatio(Q);
 renderer.setSize(W, H, false);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = LITE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
@@ -924,7 +925,7 @@ const sunTarget = new THREE.Object3D(); sunTarget.position.set(0, 0, -6); scene.
 sun.target = sunTarget; sun.position.copy(sunTarget.position).addScaledVector(SUN_DIR, 60);
 sun.castShadow = true; sun.shadow.mapSize.setScalar(LITE ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 200 });
-sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05; sun.shadow.radius = 3;
+sun.shadow.autoUpdate = !LITE; sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05; sun.shadow.radius = 3;
 scene.add(sun);
 // 애니 배경처럼 그림자가 어둡지 않고 색이 있게: 반대편에서 오는 차가운 반사광과 보랏빛 바닥의 하늘빛
 { const bounce = new THREE.DirectionalLight("#9fb0ff", 0.55); bounce.position.copy(SUN_DIR).multiplyScalar(-60).setY(20); scene.add(bounce);
@@ -1003,7 +1004,7 @@ const DAY = (() => {
 // 화면 처리(sakura-crossing 방식): 배경과 트럭 장면을 각각 색+깊이로 1.5배 해상도에 그림 →
 // 깊이의 2차 차분(라플라시안)으로 실제 윤곽·접힘에만 먹선, 멀수록 옅게 → 트럭을 배경 위에 합성 →
 // 어두운 곳은 보랏빛, 밝은 곳은 따뜻한 종이빛으로 나누는 색 보정
-const PR = 1.5 * Q;
+const PR = (LITE ? 1 : 1.5) * Q;
 function makeRT() {
   const rt = new THREE.WebGLRenderTarget(W * PR, H * PR, { type: THREE.HalfFloatType });
   rt.depthTexture = new THREE.DepthTexture(W * PR, H * PR); rt.depthTexture.type = THREE.UnsignedIntType;
@@ -1140,6 +1141,8 @@ function tick() {
     camera.lookAt(TILT_LOOK.clone().sub(TILT_PIV).applyAxisAngle(TILT_RIGHT, -pitch).applyAxisAngle(UP, yaw).add(TILT_PIV)); }
   { const o = TRUCK_OFF.clone().applyAxisAngle(X_AX, -pitch).applyAxisAngle(UP, yaw); truckCam.position.copy(TRUCK_PIV).add(o); truckCam.lookAt(TRUCK_PIV); }
   woman.update(t); man.update(t);
+  // 휴대폰: 배경 그림자는 6장에 한 번만 새로 그림(배경에서 그림자를 드리우는 것은 해 방향 말고는 움직이지 않음)
+  if (LITE) { tick.n = (tick.n || 0) + 1; sun.shadow.needsUpdate = tick.n % 6 === 1; }
   renderer.setRenderTarget(rtBg); renderer.render(scene, camera);
   renderer.setClearColor(0x000000, 0); renderer.setRenderTarget(rtFg); renderer.clear(); renderer.render(truckScene, truckCam);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);

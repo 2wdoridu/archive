@@ -59,6 +59,11 @@
   .card__flip:hover, .card__flip:focus-visible { opacity: 1; }
   .card__flip:active { transform: translateX(-50%) scale(.92); }
   .card__flip.is-away { transform: translate(-50%, 36px); opacity: 0; pointer-events: none; }
+  /* 휴대폰: 장면 위에 겹치는 섞기·흐림 효과는 매 장면마다 다시 계산돼 느려지므로 보통 겹침으로 바꾼다 */
+  @media (pointer: coarse) {
+    .detail__frame:has(.detail__scene)::after { mix-blend-mode: normal; opacity: calc(.12 + var(--on) * .18); }
+    .card__flip { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgb(243 234 214 / .62); }
+  }
   /* 애플식 연속 곡률(스쿼클)을 지원하는 브라우저: 같은 크기여도 모서리가 작아 보여 값을 키운다 */
   @supports (corner-shape: squircle) {
     .detail__frame:has(.detail__scene) { border-radius: 64px; corner-shape: squircle; }
@@ -189,7 +194,7 @@ const FLIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const FLIP_BTN = `<button type="button" class="card__flip" aria-label="뒷면 보기" aria-pressed="false">${FLIP_ICON}</button>`;
 
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&zoom=0.9&down=0.08&v=20261109-3" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&zoom=0.9&down=0.08&v=20261109-4" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
