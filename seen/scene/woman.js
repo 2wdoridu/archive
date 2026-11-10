@@ -467,44 +467,48 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
       const a0 = Math.PI * 0.3 * THREE.MathUtils.clamp((zp - 0.0) / 0.025, 0, 1);   // 앞쪽 가닥은 가르마가 아니라 앞머리 구역 옆에서 시작
       const a1 = Math.max(Math.PI * 0.32, a0 + Math.PI * 0.06);   // 두피를 떠나는 높이: 관자놀이 위
       for (let i = 0; i <= 4; i++) { const a = a0 + i / 4 * (a1 - a0), lift = 0.0022; pts.push(V(s * (0.007 + Math.sin(a) * (VOL.x * g + lift)), 0.012 + Math.cos(a) * (VOL.y * g + lift), zp)); }
-      const len = front ? 0.3 + (k % 3) * 0.03 : 0.32 + ((k * 7) % 5) * 0.02, n = 16;   // 가슴께에서 끝남. 층이 지게 길이를 섞음
+      const len = (front ? 0.3 + (k % 3) * 0.03 : 0.32 + ((k * 7) % 5) * 0.02) * (s > 0 ? 0.95 : 1), n = 16;   // 가슴께에서 끝남. 층이 지게 길이를 섞음
       const sx = pts[4].x, sz = pts[4].z, sy = pts[4].y;
       for (let i = 1; i <= n; i++) {
         const t = i / n, y = sy - t * len, d = t * len, cw = Math.min(1, t * 25), amp = (0.006 + 0.003 * t) * cw, ca = d * 160 + ph;
         const ease = 0.5 - 0.5 * Math.cos(Math.min(1, t * 1.6) * Math.PI);   // 두피에서 바깥으로 천천히 벌어짐(꺾이지 않게). 옆머리는 얼굴 높이에서 이미 옆으로 부풀고 아래로 더 퍼짐
-        const pk = s > 0 && zp > -0.01 ? 0.3 : 1;   // 손을 올린 쪽 앞머리칼은 손 뒤로 지나가게 덜 부풂
-        let x = sx + s * (pk * (0.016 * Math.min(1, t * 3) + 0.060 * THREE.MathUtils.smoothstep(t, 0.12, 0.5)) + 0.032 * t * t), z = sz - 0.03 * t;   // 사진: 관자놀이는 붙고 턱~어깨 높이에서 가장 넓음   // 관자놀이 아래부터 옆으로 볼록하게 부풂   // 아래로 갈수록 조금씩 퍼짐
+        const pk = s > 0 && zp > -0.01 ? 0.3 : 1, sf = s > 0 ? 0.88 : 1;   // 손 올린 쪽은 팔이 비켜 있어 머리가 더 많아 보여서 퍼짐을 조금 줄임   // 손을 올린 쪽 앞머리칼은 손 뒤로 지나가게 덜 부풂
+        let x = sx + s * sf * (pk * (0.016 * Math.min(1, t * 3) + 0.060 * THREE.MathUtils.smoothstep(t, 0.12, 0.5)) + 0.032 * t * t), z = sz - 0.03 * t;   // 사진: 관자놀이는 붙고 턱~어깨 높이에서 가장 넓음   // 관자놀이 아래부터 옆으로 볼록하게 부풂   // 아래로 갈수록 조금씩 퍼짐
         if (y < -0.12 && !front) z = Math.min(z, -0.09 - 0.02 * t);   // 어깨 아래로는 등 뒤로
         if (front) { z = sz + 0.014 * Math.sin(Math.min(1, t * 2.2) * Math.PI * 0.5) - 0.004 * k * t; x = sx + s * (0.014 + pk * (0.012 * Math.min(1, t * 3) + 0.05 * THREE.MathUtils.smoothstep(t, 0.15, 0.55)) + 0.006 * t + 0.006 * (k % 3) * t); }   // 얼굴 옆선 바깥으로   // 얼굴 옆선 바깥으로 비켜 어깨 앞으로
         pts.push(V(x, y, z));
       }
       let arcL = 0; for (let i = 1; i <= 4; i++) arcL += pts[i].distanceTo(pts[i - 1]); const t0 = arcL / (arcL + len);   // 두피 위 구간이 끝나는 곳부터 물결
       const wf = tt => { const T = Math.max(0, (tt - t0) / (1 - t0)), d = T * len; return (0.008 + 0.005 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
-      { const m = add(card(pts, front ? 0.016 : (s > 0 && zp > -0.02 ? 0.032 : 0.05), 120, 1, 0.12, wf, 1, (front ? 1.05 : 0.9 + 0.16 * hsh(k + s * 7)) * (zp < -0.04 ? 0.85 : 1) * (s > 0 ? 1.25 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head); m.castShadow = false; if (zp > -0.03) m.receiveShadow = false; locks.push(m); }   // 정수리에 겹친 판끼리 검은 그림자 조각이 생기지 않게
+      { const m = add(card(pts, front ? 0.016 : (s > 0 && zp > -0.02 ? 0.032 : 0.05), 120, 1, 0.12, wf, 1, (front ? 1.05 : 0.9 + 0.16 * hsh(k + s * 7)) * (zp < -0.04 ? 0.85 : 1) * (s > 0 ? 1.06 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head); m.castShadow = false; if (zp > -0.03) m.receiveShadow = false; locks.push(m); }   // 정수리에 겹친 판끼리 검은 그림자 조각이 생기지 않게
     }
-    // 어깨 앞으로 넘어와 상체를 덮는 가닥(사진: 마이크 든 쪽에 여러 가닥, 손 올린 쪽은 짧게).
+    // 어깨 앞으로 넘어와 상체를 덮는 가닥(사진: 마이크 든 쪽이 많고 손 올린 쪽은 적다).
+    // 굵은 다발 몇 개가 아니라 가는 가닥을 여럿 겹쳐 하늘하늘한 긴 웨이브로 보이게 한다.
     // 끝 자리는 충돌 처리가 몸 바깥으로 밀어 줘서 가슴 면을 타고 흐른다
     for (const s of [-1, 1]) {
-      const cnt = s < 0 ? 5 : 2;
+      const cnt = s < 0 ? 9 : 4;
       for (let k = 0; k < cnt; k++) {
-        const zp = 0.05 - k * 0.013, ph = k * 0.9 + (s > 0 ? 1.7 : 0.3);
+        const zp = 0.052 - k * 0.008, ph = k * 1.37 + 0.8 * Math.sin(k * 4.3) + (s > 0 ? 1.7 : 0.3);
         const g = Math.sqrt(Math.max(0.1, 1 - (zp / (zp > 0 ? VOL.zf : VOL.zb)) ** 2));
         const pts = [], a0 = Math.PI * 0.26, a1 = Math.PI * 0.44;
         for (let i = 0; i <= 4; i++) { const a = a0 + i / 4 * (a1 - a0);
           pts.push(V(s * (0.007 + Math.sin(a) * (VOL.x * g + 0.002)), 0.012 + Math.cos(a) * (VOL.y * g + 0.002), zp)); }
-        const len = (s < 0 ? 0.30 : 0.22) + (k % 3) * 0.03, n = 16;
+        const len = (s < 0 ? 0.30 : 0.23) + (k % 4) * 0.028, n = 18;
         const sx = pts[4].x, sy = pts[4].y, sz = pts[4].z;
+        const lean = 0.34 + 0.07 * ((k * 3) % 3);   // 가닥마다 몸 쪽으로 모이는 정도를 달리해 겹치지 않게
         for (let i = 1; i <= n; i++) {
           const t = i / n, y = sy - t * len;
           const over = THREE.MathUtils.smoothstep(t, 0.18, 0.6);   // 어깨 높이에서 앞으로 넘어옴
-          const x = sx * (1 - 0.42 * over) + s * (0.004 + 0.004 * (k % 2));   // 어깨를 넘으며 몸 쪽으로 모임
-          const z = sz + 0.015 + 0.03 * over;   // 앞으로 넘어온 뒤는 충돌 처리가 가슴 면에 얹어 준다
+          const x = sx * (1 - lean * over) + s * (0.003 + 0.005 * (k % 3));
+          const z = sz + 0.015 + 0.03 * over;
           pts.push(V(x, y, z));
         }
         let arcL = 0; for (let i = 1; i <= 4; i++) arcL += pts[i].distanceTo(pts[i - 1]);
         const t0 = arcL / (arcL + len);
-        const wf = tt => { const T = Math.max(0, (tt - t0) / (1 - t0)), d = T * len; return (0.006 + 0.004 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
-        const m = add(card(pts, 0.026, 120, 1, 0.12, wf, 1, 1.0 + 0.14 * hsh(k * 2.9 + s * 5), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head);
+        // 뿌리 가까이부터 잔물결이 살아 있고 끝으로 갈수록 폭이 커지는 느슨한 웨이브
+        const wf = tt => { const T = Math.max(0, (tt - t0) / (1 - t0)), d = T * len;
+          return (0.004 + 0.005 * T) * Math.min(1, T * 3.5) * (Math.cos(d * 95 + ph) + 0.35 * Math.cos(d * 190 + ph * 1.7)); };
+        const m = add(card(pts, 0.013, 120, 1, 0.12, wf, 1, 0.94 + 0.18 * hsh(k * 2.9 + s * 5), 2.2, 0.015), CARD[k % 3 === 1 ? 1 : 0], head);
         m.castShadow = false; m.receiveShadow = false; locks.push(m);
       }
     }
@@ -516,7 +520,7 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
       const len = 0.36 + ((k * 3) % 4) * 0.025;
       for (let i = 1; i <= 14; i++) { const t = i / 14, d = t * len; pts.push(V(rx * (1 + 0.3 * t + 0.38 * t * t), 0.01 - d, Math.min(rz - 0.012 * t, -0.085) - 0.012 * t)); }
       const wf = tt => { const T = Math.max(0, (tt - 0.12) / 0.88), d = T * len; return (0.008 + 0.005 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
-      locks.push(add(card(pts, 0.056, 120, 1, 0.1, wf, 1, (0.86 + 0.2 * hsh(k * 3.1)) * (u > 0.2 ? 1.15 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head));   // 안쪽 층: 어둡게
+      locks.push(add(card(pts, 0.056, 120, 1, 0.1, wf, 1, (0.86 + 0.2 * hsh(k * 3.1)) * (u > 0.2 ? 1.06 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head));   // 안쪽 층: 어둡게
     }
     // 등 뒤 채움 판(다발 사이로 비어 보이지 않게)
     { const bk = add(new THREE.CylinderGeometry(0.055, 0.125, 0.36, 28, 6, true, Math.PI * 0.72, Math.PI * 0.56), mat("#4a2c22", { side: THREE.DoubleSide }), head); bk.position.set(0, -0.2, -0.075); }
