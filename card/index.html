@@ -9,12 +9,14 @@
 <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   html, body { margin: 0; background: #14110e; }
   canvas { display: block; width: 100%; max-width: 1920px; height: auto; margin: 0 auto; }
   /* 장면(가운데 기준으로 양옆이 잘림) + 오른쪽 조정 패널(접으면 버튼만 떠 있음) */
   html, body { height: 100%; overflow: hidden; }
-  body { display: flex; font: 15px/1.5 "Pretendard", "Malgun Gothic", sans-serif; }
+  body { display: flex; font: 15px/1.5 "Pretendard Variable", "Pretendard", "Malgun Gothic", sans-serif; }
   .stage { flex: 1; min-width: 0; height: 100%; background: #14110e; }
   .stage { position: relative; overflow: hidden; }
   .stage .logo { position: absolute; left: 0; top: 0; width: auto; height: auto; transform-origin: 0 0; pointer-events: none; }

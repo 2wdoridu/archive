@@ -56,7 +56,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 ## 4. 수정하고 배포하는 방법
 
 1. 파일을 고치고 로컬 서버로 확인한다. PC는 1920px과 1536px(1920 모니터 + Windows 배율 125%), 휴대폰은 390px로 확인한다.
-2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261101-6`.
+2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261110-1`.
 3. 커밋하고 `git push` 한다.
 4. 1~2분 뒤 공개 주소에 반영된다. 브라우저가 예전 파일을 보여 주면 Ctrl+F5.
 
@@ -115,6 +115,9 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 4. **최종 구조로 이전:** 설계 문서의 Astro + 게시물 폴더 구조로 옮기고, 배포 전 자동 검사(필수 항목, 원작 연결, 허용 라이선스)를 넣는다.
 5. **카드 페이지:** 아카이브 게시물 중에서 머그 이미지를 고르는 기능(메트 이미지는 다른 사이트에서 불러오면 막히므로 사본을 저장소에 둬야 함), 보고 있는 화면만큼 저장(보류). 장면 원본은 `card/index.html` 하나다.
 6. **나만의 빵 스티커:** 빵·토핑 조합별 완성 이미지(AI 제작)를 `COMBOS`에 등록, 네이버 스토어 주문제작 상품 주소 연결, 주문과 디자인을 잇는 방법(디자인 코드 등) 결정.
+7. **관람 목록 타일 미리보기(보류):** 목록(`seen/index.html`)도 타일마다 3D 장면을 띄운다. 상세처럼 첫 화면 그림을 먼저 깔 수 있으나 보류하기로 했다(2026-11-10).
+8. **장면이 실제로 돌기까지 느린 4G 에서 5.2초:** 더 줄이려면 three 를 자체 번들로 깎거나 장면 만들기를 Worker + OffscreenCanvas 로 옮겨야 한다. 구조를 건드리는 일이라 아직 안 했다.
+
 
 ## 7. 결정 이력
 
@@ -172,6 +175,24 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
   도메인을 먼저 붙였으면 이름을 바꾼 뒤 DNS 를 다시 고쳐야 했다.
 - 가비아 소유자 정보 공개는 **비공개**다(기본값). 공개 WHOIS 에 등록자명·주소·전화가
   `REDACTED FOR PRIVACY` 로 나가는 것을 직접 조회해 확인했다.
+
+### 2026-11-10 관람 기록 장면 가볍게, Pretendard 주소
+
+휴대폰에서 상세 페이지가 느리고 끊기는 문제를 고쳤다. 보이는 그림은 그대로다(같은 시각으로 멈춰 픽셀 비교, 어긋난 픽셀 0.08% 이하로 기준선 잡음과 같은 수준).
+
+- **제자리에 있는 메시를 재질별로 합친다.** `paradise.html` 의 `mergeStatic`(묶음 바로 아래) · `mergeDeep`(하위까지) · `mergeUnmoving`(몇 가지 시각으로 움직여 보고 안 바뀌는 것만). 겉보기가 같은 재질은 하나로 본다. 프레임당 draw call 2,164 → 830.
+- **만드는 동안 차례를 넘긴다.** 큰 단계 사이의 `await YIELD()` 9곳. 한 번에 멎던 시간 1,196ms → 361ms.
+- **첫 화면 그림을 먼저 띄운다.** `seen/img/paradise-first.webp`(930×1240, 53KB). 상세에서 `.detail__stage` 안에 3D 장면과 같은 자리로 깔고, 장면이 첫 장을 그리면 `postMessage` 로 알려 와 치운다. 3D 장면은 그림이 뜬 뒤에 부른다. 하루 주기가 0초에서 시작하므로 첫 장은 늘 같은 그림이다. 장면을 고치면 이 그림도 다시 떠야 한다.
+- **쓰지 않던 후처리 모듈 import 5개 삭제**(EffectComposer·RenderPass·UnrealBloomPass·ShaderPass·OutputPass). 딸려 오던 요청 10개가 사라졌다.
+- **three 를 압축 빌드로**, `preconnect`·`modulepreload` 추가.
+- **글꼴을 `style.css` 의 `@import` 가 아니라 HTML `<link>` 로** 받는다. HTML → css → 글꼴 css → 글꼴 파일 4단 직렬 대기가 없어졌다.
+- **Pretendard 주소**: 쓰던 `gh/orioncactus/…/static/pretendard.min.css` 는 글꼴 파일 경로가 전부 404 라, Pretendard 가 깔려 있지 않은 기기에서는 글꼴이 안 받아졌다. 같은 버전의 `npm/pretendard@1.3.9/…/variable/pretendardvariable-dynamic-subset.min.css`(글자별로 쪼개 받는 판)으로 바꿨다. 통짜 파일은 굵기당 780KB(정적)·2.06MB(변수)라 쓸 수 없다. 글꼴 이름이 `Pretendard Variable` 이라 `--sans` 와 `bread`·`card` 의 글꼴 이름도 같이 고쳤다. 캔버스 글자는 화면 글자와 달리 글꼴을 저절로 받아오지 않으므로 `bread` 에 `ensureFont` 를 두었다.
+
+휴대폰 390px·CPU 4배 감속 기준: 프레임당 메인 스레드 작업 31.4ms → 20.5ms, 느린 4G 에서 카드에 그림이 뜨는 시각 5,973ms → 1,540ms.
+
+**해 보고 되돌린 것**
+- 그림자 지도를 두 프레임에 한 번만 갱신: 0.4ms 밖에 못 줄이면서 인물 옷과 짐칸 음영이 달라졌다. 이때 알게 된 것 — `shadowMap.autoUpdate` 를 끄지 않으면 `light.shadow.needsUpdate` 는 아무 일도 하지 않는다. 장면마다 `renderer.shadowMap.needsUpdate` 를 따로 켜 줘야 한다.
+- 글꼴 CSS 를 첫 그림을 막지 않게(`media="print"`) 바꾸기: 느린 4G 에서 카드에 그림 뜨는 시각이 1,540ms → 2,140ms 로 나빠졌다.
 
 ### 배포
 - NAS 하위 폴더 배포를 검토했으나 GitHub Pages로 정했다. NAS 웹 폴더 루트에는 다른 업무 시스템이 운영 중이라 절대 덮어쓰지 않는다.
