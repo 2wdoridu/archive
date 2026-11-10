@@ -38,6 +38,8 @@ import { buildMan } from "./man.js?v=24";
 
 // 인스타그램 세로 3:4
 const W = 1080, H = 1440;
+// 만드는 도중 브라우저가 화면을 그리고 손가락 입력을 받을 수 있게 단계 사이에서 한 번씩 멈춘다
+const YIELD = () => new Promise(r => setTimeout(r, 0));
 // 실제로 보이는 크기만큼만 그린다: 휴대폰 카드 안(폭 300px 안팎)에선 1080px 대신 그 화면 픽셀 수에 맞춰 줄임
 const Q = Math.min(1, Math.max(0.4, innerWidth * Math.min(devicePixelRatio || 1, 2) / W));
 // 휴대폰·태블릿: 그림자 해상도·부드럽게 하기를 낮추고, 중간 그림을 화면 크기 그대로 그리고, 초당 30장으로 그림
@@ -201,6 +203,7 @@ function height(x, z) {
   return r.y * (1 - k) + h * k;
 }
 
+await YIELD();
 // 지형: 각진 면마다 색을 칠함(붉은 모래·바위, 푸른빛 덤불 무리)
 const SAND = new THREE.Color("#cfa293"), RED = new THREE.Color("#b07e84"), DARK = new THREE.Color("#6e5a70"),
   PEAK = new THREE.Color("#dfe0ee"), SAGE = new THREE.Color("#5c8f8e");
@@ -252,6 +255,7 @@ roadRibbon(ROAD, ROAD_PTS, ROAD_W, 0.3, "#eadbd4");
 // 둘째 길은 화면에서 직접 그린 길이라 카메라 쪽으로 뻗는 구간도 그림
 roadRibbon(ROAD2, ROAD2_PTS, 4, 0.3, "#e6d3c8", false);
 
+await YIELD();
 // 덤불: 공연 화면처럼 언덕 곳곳에 무리 지어 자란 푸른 회녹색 덤불
 {
   const spots = [];
@@ -278,6 +282,7 @@ roadRibbon(ROAD2, ROAD2_PTS, 4, 0.3, "#e6d3c8", false);
   scene.add(im);
 }
 
+await YIELD();
 // 풀: 가는 잎 몇 장을 묶은 포기. 바람에 끝이 살랑살랑 흔들림(뿌리는 고정)
 const wind = { value: 0 };
 const BIO = { value: 0 };   // 밤에 풀끝이 은은하게 빛나는 정도(0~1)
@@ -467,6 +472,7 @@ photoRock(LEDGE_TOP, CAM.z - ROCK3_D, 3 * ROCK3_D / 26, false, ["#5f4e56", "#6c5
 const rock = photoRock(SLAB, 36, 3);
 // 요정: 바위 능선 위를 줄지어 지나감(지금은 멈춘 채 나는 모습). 은은하게 빛나는 물방울 몸, 끝이 뒤로 휜 뾰족한 고깔모자,
 // 몸 뒤로 가늘어지는 빛 꼬리, 작은 반투명 날개, 둘레의 은은한 빛무리. 디테일 없이 단순한 형태
+await YIELD();
 const FAIRIES = [];
 // 부드러운 빛 무늬(가운데 밝고 바깥으로 사라짐)
 const GLOW_TEX = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"), g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.25, "rgba(255,255,255,0.55)"); g.addColorStop(0.6, "rgba(255,255,255,0.12)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); return t; })();
@@ -611,6 +617,7 @@ const NIGHT_LIGHTS = (() => {
 })();
 
 // 모래 먼지: 바위 앞을 바람 따라 떠다님
+await YIELD();
 const dustN = 260, dustArr = new Float32Array(dustN * 3);
 for (let i = 0; i < dustN; i++) dustArr.set([(rnd() - 0.5) * 40, 1 + rnd() * 3, 4 + rnd() * 22], i * 3);
 const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute("position", new THREE.BufferAttribute(dustArr, 3));
@@ -914,6 +921,7 @@ function mergeUnmoving(root, update, times) {
   return root;
 }
 
+await YIELD();
 const truck = mergeDeep(makeTruck());   // 트럭은 제자리에 있으므로 재질별로 합쳐 그린다
 truck.rotation.y = Math.PI / 2; // 앞이 바위(화면 안쪽), 뒷모습이 카메라 쪽
 const TS = 0.88; truck.scale.setScalar(TS);   // 화면에서 트럭 비중을 줄이고 인물을 상대적으로 크게(의도적인 원근 정리)
@@ -980,11 +988,13 @@ const PROP_SWAY = [];   // 바람에 흔들리는 트럭 좌우 수풀(이삭 �
 }
 
 // 여자 인물(woman.js, 배경과 같은 셀 처리): 펼친 뒷문 끝에 걸터앉음. 화면 가운데에서 살짝 왼쪽
+await YIELD();
 const woman = buildWoman({ THREE, mat, RoundedBoxGeometry });
 woman.group.position.set(-0.2, 0.545 * TS + 0.035, 2.52 * TS - 0.3);   // 뒷문 윗면·끝(트럭 크기에 맞춤)
 mergeUnmoving(woman.group, woman.update, [0.73, 1.91]);
 truckScene.add(woman.group);
 // 남자 인물(man.js, 사진): 짐칸 앞 짐 더미 위에 걸터앉아 다리를 꼼. 한 발은 짐칸 바닥을 딛음
+await YIELD();
 const man = buildMan({ THREE, mat, RoundedBoxGeometry });
 // 짐 더미: 짐칸 맨 앞(운전석 바로 뒤)에 아래부터 나무 상자, 낡은 갈색 가죽 트렁크, 초록 트렁크를 조금씩 엇갈리게 쌓음
 const CARGO_X = 0.17, CARGO_Z = 0.56, BED_Y = 0.55 * TS;
@@ -1105,6 +1115,7 @@ const DAY = (() => {
 // 화면 처리(sakura-crossing 방식): 배경과 트럭 장면을 각각 색+깊이로 1.5배 해상도에 그림 →
 // 깊이의 2차 차분(라플라시안)으로 실제 윤곽·접힘에만 먹선, 멀수록 옅게 → 트럭을 배경 위에 합성 →
 // 어두운 곳은 보랏빛, 밝은 곳은 따뜻한 종이빛으로 나누는 색 보정
+await YIELD();
 const PR = (LITE ? 1 : 1.5) * Q;
 function makeRT() {
   const rt = new THREE.WebGLRenderTarget(W * PR, H * PR, { type: THREE.HalfFloatType });

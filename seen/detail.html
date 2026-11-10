@@ -54,7 +54,8 @@
   .card__ornate { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
   .detail__scene { position: relative; z-index: 1; display: block; width: 100%; aspect-ratio: 3 / 4; border: 0; pointer-events: none; }
   /* 첫 화면 그림: 3D 장면이 첫 장을 그릴 때까지 같은 자리에 같은 그림을 깔아 둔다 */
-  .detail__poster { position: absolute; z-index: 2; inset: var(--pad); width: auto; height: auto; object-fit: cover; pointer-events: none; }
+  .detail__stage { position: relative; z-index: 1; display: block; width: 100%; }
+  .detail__poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
   /* 뒷면: 콘서트 티켓 */
   .card__back { display: none; position: absolute; z-index: 1; inset: var(--pad); overflow: hidden; }
   .card__back svg { display: block; width: 100%; height: 100%; }
@@ -206,7 +207,7 @@ const FLIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const FLIP_BTN = `<button type="button" class="card__flip" aria-label="뒷면 보기" aria-pressed="false">${FLIP_ICON}</button>`;
 
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" ${s.poster ? "data-src" : "src"}="${s.scene}?embed&zoom=0.9&down=0.08&v=20261109-4" title="${s.title}"></iframe>${s.poster ? `<img class="detail__poster" src="${s.poster}" alt="" aria-hidden="true" decoding="async" fetchpriority="high">` : ""}${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<div class="detail__stage"><iframe class="detail__scene" ${s.poster ? "data-src" : "src"}="${s.scene}?embed&zoom=0.9&down=0.08&v=20261109-4" title="${s.title}"></iframe>${s.poster ? `<img class="detail__poster" src="${s.poster}" alt="" aria-hidden="true" decoding="async" fetchpriority="high">` : ""}</div>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
