@@ -22,8 +22,8 @@
 | `analysis-sample.html` | 분석 기록 샘플 페이지(`?id=게시물 식별자`). 상세 정보 아래에 색 구성(이미지에서 주요 색 5개와 비율 계산), 양식 유사도(`data.js`의 `styles` 예시값, 일부 게시물에만 있음), 디지털 지문(축소 이미지 픽셀의 SHA-256)을 보여 준다. 사이트 메뉴에는 연결하지 않았다 |
 | `info.html` | 정보 페이지 |
 | `studio.html` | 작업실: 만들기 도구(카드 만들기·띠부씰 만들기) 목록 |
-| `seen/index.html`, `seen/detail.html`, `seen/data.js` | 관람 기록: 본 공연·영화·전시를 3:4 이미지로 늘어놓은 목록과 확대 상세. 항목은 `data.js` 의 `SEEN` |
-| `seen/scene/paradise.html` | 관람 기록 첫 장면(악뮤 '소문의 낙원', 2026-11-07 강릉). Three.js 애니 셀 장면: 사진 기준 배경·바위·길, 낡은 픽업트럭, 두 인물, 수풀, 요정 무리. 배경과 트럭 장면을 따로 그려 합친 뒤 먹선·색 보정 |
+| `seen/index.html`, `seen/detail.html`, `seen/data.js`, `seen/ticket.js` | SEEN(옛 이름 관람 기록): 본 공연·영화·전시를 3:4 이미지로 늘어놓은 목록과 확대 상세. 항목은 `data.js` 의 `SEEN` |
+| `seen/scene/paradise.html` | SEEN 첫 장면(악뮤 '소문의 낙원', 2026-11-07 강릉). Three.js 애니 셀 장면: 사진 기준 배경·바위·길, 낡은 픽업트럭, 두 인물, 수풀, 요정 무리. 배경과 트럭 장면을 따로 그려 합친 뒤 먹선·색 보정 |
 | `seen/scene/woman.js`, `seen/scene/man.js` | 장면의 두 인물(수현·찬혁)을 코드로 만드는 모듈. 머리카락은 몸·팔과 겹치지 않게 충돌 처리 |
 | `seen/scene/woman-test.html` | 인물 점검 화면(`?who=man`, `?view=…` 또는 `?cam=x,y,z&tgt=x,y,z`) |
 | `seen/scene/methods-demo.html`, `methods-demo-2.html`, `paradise-poly.html` | 장면 방식 시험본(보관용) |
@@ -56,7 +56,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 ## 4. 수정하고 배포하는 방법
 
 1. 파일을 고치고 로컬 서버로 확인한다. PC는 1920px과 1536px(1920 모니터 + Windows 배율 125%), 휴대폰은 390px로 확인한다.
-2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261110-4`.
+2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261110-5`.
 3. 커밋하고 `git push` 한다.
 4. 1~2분 뒤 공개 주소에 반영된다. 브라우저가 예전 파일을 보여 주면 Ctrl+F5.
 
@@ -193,6 +193,10 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 **크게 보기(2026-11-10)**: 상세 카드 아래 동그라미 둘 중 왼쪽. 누르면 `body.is-zoom` 이 붙어 테두리 장식과 종이 판을 숨기고 장면을 화면에 맞춰 키운다. 장면이 3:4 로 그려지므로 비율은 그대로 두고 남는 곳은 어둡게 둔다. 다시 누르거나 Escape 로 돌아온다. 크게 본 동안에는 상단 바가 가려지므로 단추를 5초 뒤에 숨기지 않는다. 장면(`paradise.html`)은 창 크기가 바뀌면 그 크기에 맞춰 다시 그린다(먹선 굵기 `texel` 은 화면 크기와 무관하게 정해져 있어 건드리지 않는다).
 
 **수현 머리(2026-11-10)**: 뒷머리 다발 26 → 22가닥, 폭 0.062 → 0.056, 아래로 퍼지는 양을 줄였다(등 뒤 채움 판 아래 반지름 0.15 → 0.125). 옆머리가 옆으로 부푸는 양도 줄였다. 사진처럼 어깨를 넘어 상체를 덮는 가닥을 더했다(마이크 든 쪽 5가닥, 손 올린 쪽 2가닥). 끝자리는 기존 충돌 처리가 몸 바깥으로 밀어 줘서 가슴 면을 타고 흐른다. 가운데(머리 좌표 |x| < 0.045)로는 넘어오지 않게 둔다 — 그 구간은 목 뒤로 보내는 규칙이 있다.
+
+**이름(2026-11-10)**: `관람 기록` → **`SEEN`**. 주소가 이미 `/seen/` 이라 이름과 주소가 같아지고, Archivo 로 그려져 `2W_DORIDU` 와 한 세트로 보인다. 한국어 설명은 따로 붙이지 않기로 했다. 바꾼 곳: 작업실 카드, 목록 제목, 목록·상세 탭 제목. 주소는 그대로 둔다.
+
+**목록 칸(2026-11-10)**: 칸마다 3D 장면을 iframe 으로 띄우던 것을 카드 뒷면 티켓(`seen/ticket.js`)으로 바꿨다. 3D 장면은 상세에서만 돈다. 칸 모서리 3px → 24px(스쿼클 38px).
 
 **해 보고 되돌린 것**
 - 그림자 지도를 두 프레임에 한 번만 갱신: 0.4ms 밖에 못 줄이면서 인물 옷과 짐칸 음영이 달라졌다. 이때 알게 된 것 — `shadowMap.autoUpdate` 를 끄지 않으면 `light.shadow.needsUpdate` 는 아무 일도 하지 않는다. 장면마다 `renderer.shadowMap.needsUpdate` 를 따로 켜 줘야 한다.
