@@ -9,6 +9,17 @@
 <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<script src="data.js?v=20261109-1"></script>
+<script>
+  // 이 기록의 첫 화면 그림을 가장 먼저 받기 시작한다(3D 장면이 뜨기 전에 보여 줄 그림)
+  { const q = new URLSearchParams(location.search).get("id");
+    const s = SEEN.find(x => x.id === q) || SEEN[0];
+    if (s && s.poster) { const l = document.createElement("link"); l.rel = "preload"; l.as = "image"; l.href = s.poster; l.fetchPriority = "high"; document.head.appendChild(l); } }
+</script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&family=Nanum+Gothic+Coding&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="stylesheet" href="../style.css?v=20261102-1">
 <style>
   .detail__media img { aspect-ratio: 3 / 4; object-fit: cover; }
@@ -42,6 +53,8 @@
   }
   .card__ornate { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
   .detail__scene { position: relative; z-index: 1; display: block; width: 100%; aspect-ratio: 3 / 4; border: 0; pointer-events: none; }
+  /* 첫 화면 그림: 3D 장면이 첫 장을 그릴 때까지 같은 자리에 같은 그림을 깔아 둔다 */
+  .detail__poster { position: absolute; z-index: 2; inset: var(--pad); width: auto; height: auto; object-fit: cover; pointer-events: none; }
   /* 뒷면: 콘서트 티켓 */
   .card__back { display: none; position: absolute; z-index: 1; inset: var(--pad); overflow: hidden; }
   .card__back svg { display: block; width: 100%; height: 100%; }
@@ -83,7 +96,6 @@
 <main class="detail" id="post"></main>
 <nav class="pager"></nav>
 
-<script src="data.js?v=20261109-1"></script>
 <script>
 const id = new URLSearchParams(location.search).get("id");
 const i = Math.max(0, SEEN.findIndex(s => s.id === id));
@@ -194,12 +206,25 @@ const FLIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const FLIP_BTN = `<button type="button" class="card__flip" aria-label="뒷면 보기" aria-pressed="false">${FLIP_ICON}</button>`;
 
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" src="${s.scene}?embed&zoom=0.9&down=0.08&v=20261109-4" title="${s.title}"></iframe>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<iframe class="detail__scene" ${s.poster ? "data-src" : "src"}="${s.scene}?embed&zoom=0.9&down=0.08&v=20261109-4" title="${s.title}"></iframe>${s.poster ? `<img class="detail__poster" src="${s.poster}" alt="" aria-hidden="true" decoding="async" fetchpriority="high">` : ""}${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
     <p class="info__line--muted">${s.date}</p>
   </div>`;
+
+// 첫 화면 그림을 먼저 띄우고, 그 다음에 3D 장면을 불러온다. 장면이 첫 장을 그리면 그림을 치운다
+{
+  const poster = document.querySelector(".detail__poster"), frame = document.querySelector(".detail__scene");
+  if (poster && frame) {
+    addEventListener("message", e => {
+      if (e.origin === location.origin && e.data && e.data.type === "ready") poster.remove();
+    });
+    const go = () => { if (frame.dataset.src) { frame.src = frame.dataset.src; delete frame.dataset.src; } };
+    if (poster.complete) go(); else { poster.addEventListener("load", go); poster.addEventListener("error", go); }
+    setTimeout(go, 3000);   // 그림이 늦게 와도 장면은 시작한다
+  }
+}
 
 // 마우스 위치(틀 가운데 기준 -1~1)를 장면에 보내 보는 각도를 바꾼다. 카드 위에 있으면 카드도 그쪽으로 기운다
 const scene = document.querySelector(".detail__scene");

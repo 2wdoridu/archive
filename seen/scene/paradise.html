@@ -18,19 +18,18 @@
 <script>if (new URLSearchParams(location.search).has("embed")) document.documentElement.classList.add("embed");</script>
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
 } }
 </script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js" crossorigin>
+<link rel="modulepreload" href="woman.js?v=146">
+<link rel="modulepreload" href="man.js?v=24">
 </head>
 <body>
 <script type="module">
 import * as THREE from "three";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import * as BufferUtils from "three/addons/utils/BufferGeometryUtils.js";
 import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -818,7 +817,104 @@ truckCam.lookAt(0, 1.45, 0);   // 낮은 데서 올려다봄
   const road = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 22), mat("#dcc6b6", { polygonOffset: true, polygonOffsetFactor: -2 }));
   road.rotation.x = -Math.PI / 2; road.position.set(0, 0.005, 6); road.receiveShadow = true; truckScene.add(road);
 }
-const truck = makeTruck();
+// 겉보기가 같은 재질은 하나로 본다(합칠 때 쓰는 열쇠). 트럭 장면의 재질은 도중에 값이 바뀌지 않는다
+const MAT_KEY = new Map(), MAT_ONE = new Map();
+function matKey(m) {
+  let k = MAT_KEY.get(m);
+  if (k === undefined) {
+    k = [m.type, m.color && m.color.getHexString(), m.emissive && m.emissive.getHexString(), m.emissiveIntensity,
+      m.roughness, m.metalness, m.side, m.shadowSide, m.transparent, m.opacity, m.alphaTest, m.flatShading,
+      m.depthWrite, m.depthTest, m.blending, m.vertexColors, m.wireframe, m.polygonOffset, m.polygonOffsetFactor,
+      m.gradientMap && m.gradientMap.uuid, m.map && m.map.uuid, m.alphaMap && m.alphaMap.uuid, m.normalMap && m.normalMap.uuid].join("|");
+    MAT_KEY.set(m, k);
+    if (!MAT_ONE.has(k)) MAT_ONE.set(k, m);
+  }
+  return k;
+}
+const matOne = m => (matKey(m), MAT_ONE.get(MAT_KEY.get(m)));
+
+// 모아 둔 메시를 재질·그림자·꼭짓점 구성이 같은 것끼리 합친다. 합쳐지지 않는 묶음은 그대로 돌려준다
+function geoKey(g) {
+  return (g.index ? "i" : "n") + "|" + Object.keys(g.attributes).sort().map(k => k + ":" + g.attributes[k].itemSize).join(",");
+}
+function mergeBins(list) {
+  const bins = new Map();
+  for (const { o, mx } of list) {
+    const k = `${matKey(o.material)}|${o.castShadow}|${o.receiveShadow}|${geoKey(o.geometry)}`;
+    let b = bins.get(k);
+    if (!b) bins.set(k, b = { m: matOne(o.material), cast: o.castShadow, recv: o.receiveShadow, geos: [], src: [] });
+    b.geos.push(o.geometry.clone().applyMatrix4(mx));
+    b.src.push(o);
+  }
+  const made = [], kept = [];
+  for (const b of bins.values()) {
+    if (b.src.length < 2) { kept.push(...b.src); continue; }
+    const geo = BufferUtils.mergeGeometries(b.geos, false);
+    if (!geo) { kept.push(...b.src); continue; }
+    const o = new THREE.Mesh(geo, b.m);
+    o.castShadow = b.cast; o.receiveShadow = b.recv;
+    made.push({ mesh: o, src: b.src });
+  }
+  return { made, kept };
+}
+
+const plain = o => o.isMesh && !o.isInstancedMesh && !Array.isArray(o.material) && o.geometry
+  && !o.material.isShaderMaterial && !Object.prototype.hasOwnProperty.call(o.material, "onBeforeCompile");
+
+// 묶음 바로 아래의 움직이지 않는 메시를 합친다
+function mergeStatic(g) {
+  const list = [], keep = [];
+  for (const c of g.children) {
+    if (!plain(c) || c.children.length) { keep.push(c); continue; }
+    c.updateMatrix(); list.push({ o: c, mx: c.matrix.clone() });
+  }
+  if (!list.length) return g;
+  const { made, kept } = mergeBins(list);
+  if (!made.length) return g;
+  g.clear();
+  for (const c of keep) g.add(c);
+  for (const c of kept) g.add(c);
+  for (const m of made) g.add(m.mesh);
+  return g;
+}
+
+// 하위 묶음까지 통째로 합친다(전체가 제자리에 있는 것에만 쓴다)
+function mergeDeep(root) {
+  const list = [], keep = [];
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  root.traverse(o => {
+    if (o === root) return;
+    if (plain(o)) list.push({ o, mx: new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld) });
+    else if (o.isInstancedMesh || o.isPoints || o.isSprite || o.isLight) keep.push(o);
+  });
+  if (!list.length) return root;
+  const { made, kept } = mergeBins(list);
+  if (!made.length) return root;
+  root.clear();
+  for (const o of keep) root.add(o);
+  for (const o of kept) root.add(o);
+  for (const m of made) root.add(m.mesh);
+  return root;
+}
+
+// 몇 가지 시각으로 움직여 본 뒤, 자리도 모양도 그대로인 메시만 합친다(움직이는 부분은 그대로 둔다)
+function mergeUnmoving(root, update, times) {
+  const sig = o => { o.updateMatrix(); const a = o.geometry.attributes.position;
+    return o.matrix.elements.join(",") + "|" + o.geometry.uuid + "|" + (a ? a.version : -1); };
+  const cand = root.children.filter(c => plain(c) && !c.children.length);
+  const first = cand.map(sig);
+  for (const t of times) { update(t); root.updateMatrixWorld(true);
+    for (let i = 0; i < cand.length; i++) if (cand[i] && sig(cand[i]) !== first[i]) cand[i] = null; }
+  const list = [];
+  for (const o of cand) if (o) { o.updateMatrix(); list.push({ o, mx: o.matrix.clone() }); }
+  if (!list.length) return root;
+  const { made } = mergeBins(list);
+  for (const m of made) { for (const o of m.src) root.remove(o); root.add(m.mesh); }
+  return root;
+}
+
+const truck = mergeDeep(makeTruck());   // 트럭은 제자리에 있으므로 재질별로 합쳐 그린다
 truck.rotation.y = Math.PI / 2; // 앞이 바위(화면 안쪽), 뒷모습이 카메라 쪽
 const TS = 0.88; truck.scale.setScalar(TS);   // 화면에서 트럭 비중을 줄이고 인물을 상대적으로 크게(의도적인 원근 정리)
 truckScene.add(truck);
@@ -841,7 +937,7 @@ const PROP_SWAY = [];   // 바람에 흔들리는 트럭 좌우 수풀(이삭 �
   const stemM = mat("#7f9a5e"), flowerM = [mat("#e98fa5"), mat("#f2d27a"), mat("#f6f1e8"), mat("#b9a0e0")];
   for (let i = 0; i < 26; i++) { const right = i < 16, x = right ? 0.9 + (i * 0.37 % 0.8) : -0.9 - (i * 0.41 % 0.8), z = right ? -1.4 + (i * 0.53 % 2.1) : -0.2 + (i * 0.29 % 1.1), h = 0.12 + (i % 4) * 0.04; put(new THREE.CylinderGeometry(0.004, 0.005, h, 4), stemM, x, h / 2, z); put(new THREE.SphereGeometry(0.022, 8, 6), flowerM[i % 4], x, h, z); }
   // 마른 덤불(오른쪽 뒤): 가는 가지가 둥글게 뻗음
-  { const bush = new THREE.Group(); bush.position.set(1.55, 0, -2.3); bush.scale.setScalar(1.6); prop.add(bush); const br = mat("#8a6a4c"); for (let i = 0; i < 22; i++) { const a = i * 2.4, el = 0.4 + (i % 5) * 0.18, L = 0.35 + (i % 3) * 0.12, c = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.009, L, 4), br); c.position.set(Math.cos(a) * Math.cos(el) * L / 2, Math.sin(el) * L / 2, Math.sin(a) * Math.cos(el) * L / 2); c.lookAt(Math.cos(a) * Math.cos(el) * L, Math.sin(el) * L, Math.sin(a) * Math.cos(el) * L); c.rotateX(Math.PI / 2); bush.add(c); } }
+  { const bush = new THREE.Group(); bush.position.set(1.55, 0, -2.3); bush.scale.setScalar(1.6); prop.add(bush); const br = mat("#8a6a4c"); for (let i = 0; i < 22; i++) { const a = i * 2.4, el = 0.4 + (i % 5) * 0.18, L = 0.35 + (i % 3) * 0.12, c = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.009, L, 4), br); c.position.set(Math.cos(a) * Math.cos(el) * L / 2, Math.sin(el) * L / 2, Math.sin(a) * Math.cos(el) * L / 2); c.lookAt(Math.cos(a) * Math.cos(el) * L, Math.sin(el) * L, Math.sin(a) * Math.cos(el) * L); c.rotateX(Math.PI / 2); bush.add(c); } mergeStatic(bush); }
   // 중간 높이까지 채우는 큰 바위(겹쳐 쌓음), 흰 이삭이 달린 키 큰 풀, 꽃이 핀 덤불
   for (const [x, z, r, sd, ry, yy] of [[1.55, -2.4, 0.85, 23, 0.3, 0], [1.25, -2.0, 0.5, 29, 1.1, 0.55], [-1.6, -2.6, 0.9, 31, 0.8, 0], [-1.3, -2.2, 0.45, 37, 2.4, 0.6], [2.0, -3.4, 0.75, 41, 0.5, 0], [-2.05, -3.6, 0.7, 43, 1.7, 0]]) put(rockGeo(r, sd), rockM[sd % 3], x, r * 0.35 + yy, z, ry);
   const pampas = (x, z, sc) => {
@@ -849,6 +945,7 @@ const PROP_SWAY = [];   // 바람에 흔들리는 트럭 좌우 수풀(이삭 �
     const leafM = mat("#8f9a62", { side: THREE.DoubleSide }), stalkM = mat("#c8b48a"), plumeM = mat("#eadcc0", { emissive: new THREE.Color("#2e2820") });
     for (let i = 0; i < 18; i++) { const a = i * 2.4, lean = 0.25 + (i % 4) * 0.12, L = 0.55 + (i % 3) * 0.2; const b = new THREE.Mesh(new THREE.ConeGeometry(0.012, L, 3), leafM); b.position.set(Math.cos(a) * Math.sin(lean) * L / 2, Math.cos(lean) * L / 2, Math.sin(a) * Math.sin(lean) * L / 2); b.rotation.set(Math.sin(a) * lean, 0, -Math.cos(a) * lean); g2.add(b); }
     for (let i = 0; i < 5; i++) { const a = i * 1.3, lean = 0.08 + i * 0.05, L = 1.0 + (i % 2) * 0.25; const st = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.007, L, 4), stalkM); st.position.set(Math.cos(a) * Math.sin(lean) * L / 2, L / 2, Math.sin(a) * Math.sin(lean) * L / 2); st.rotation.set(Math.sin(a) * lean, 0, -Math.cos(a) * lean); g2.add(st); const pl = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), plumeM); pl.scale.set(0.028, 0.12, 0.028); pl.position.set(Math.cos(a) * Math.sin(lean) * L, L + 0.08, Math.sin(a) * Math.sin(lean) * L); pl.rotation.set(Math.sin(a) * lean, 0, -Math.cos(a) * lean); g2.add(pl); }
+    mergeStatic(g2);
   };
   pampas(1.05, -1.35, 1.0); pampas(1.85, -1.1, 0.85); pampas(-1.05, -1.5, 1.05); pampas(-1.8, -1.2, 0.9);
   const flowerBush = (x, z, sc, cols, y = 0) => {
@@ -856,12 +953,13 @@ const PROP_SWAY = [];   // 바람에 흔들리는 트럭 좌우 수풀(이삭 �
     const leafM = mat("#7f9a64"), fm = cols.map(c => mat(c));
     for (let i = 0; i < 9; i++) { const a = i * 2.2, rr = 0.12 + (i % 3) * 0.08, s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16 + (i % 2) * 0.05, 1), leafM); s.position.set(Math.cos(a) * rr, 0.14 + (i % 3) * 0.08, Math.sin(a) * rr); s.castShadow = true; g2.add(s); }
     for (let i = 0; i < 34; i++) { const a = i * 2.39996, el = 0.3 + (i % 5) * 0.2, rr = 0.26, f = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), fm[i % fm.length]); f.position.set(Math.cos(a) * Math.cos(el) * rr, 0.16 + Math.sin(el) * rr, Math.sin(a) * Math.cos(el) * rr); g2.add(f); }
+    mergeStatic(g2);
   };
   flowerBush(0.95, -0.6, 1.0, ["#e98fa5", "#f6f1e8"]); flowerBush(1.6, -0.3, 0.8, ["#f2d27a", "#e98fa5"]); flowerBush(-0.98, -0.75, 1.0, ["#b9a0e0", "#f6f1e8"]); flowerBush(-1.65, -0.45, 0.85, ["#f2d27a", "#e98fa5"]);
   // 화면에 보이는 트럭 옆 띠(트럭 바깥 ~ 화면 끝)에 덤불·꽃·이삭 풀·풀 포기를 더 심음. 깊이에 따라 보이는 폭이 달라 자리를 깊이별로 정함
   const band = (z, side, u) => { const half = (6 - z) * 0.205, inner = 0.78; return side * (inner + (half - inner) * u); };
   // 둥근 초록 덤불(꽃 없음): 잎 덩어리 몇 개를 뭉침
-  const greenBush = (x, y, z, sc) => { const g2 = new THREE.Group(); g2.position.set(x, y, z); g2.scale.setScalar(sc); prop.add(g2); PROP_SWAY.push({ o: g2, amp: 0.03, sp: 1.0, ph: x * 1.3 + z * 0.7 }); const lm = [mat("#7f9a64"), mat("#6f8c5c"), mat("#93a873")]; for (let i = 0; i < 7; i++) { const a = i * 2.3, rr = 0.1 + (i % 3) * 0.07, s = new THREE.Mesh(new THREE.SphereGeometry(0.14 + (i % 2) * 0.05, 14, 10), lm[i % 3]); s.position.set(Math.cos(a) * rr, 0.12 + (i % 3) * 0.06, Math.sin(a) * rr); s.castShadow = true; g2.add(s); } };
+  const greenBush = (x, y, z, sc) => { const g2 = new THREE.Group(); g2.position.set(x, y, z); g2.scale.setScalar(sc); prop.add(g2); PROP_SWAY.push({ o: g2, amp: 0.03, sp: 1.0, ph: x * 1.3 + z * 0.7 }); const lm = [mat("#7f9a64"), mat("#6f8c5c"), mat("#93a873")]; for (let i = 0; i < 7; i++) { const a = i * 2.3, rr = 0.1 + (i % 3) * 0.07, s = new THREE.Mesh(new THREE.SphereGeometry(0.14 + (i % 2) * 0.05, 14, 10), lm[i % 3]); s.position.set(Math.cos(a) * rr, 0.12 + (i % 3) * 0.06, Math.sin(a) * rr); s.castShadow = true; g2.add(s); } mergeStatic(g2); };
   for (const side of [-1, 1]) {
     const cols = side > 0 ? [["#e98fa5", "#f6f1e8"], ["#f2d27a", "#e98fa5"], ["#b9a0e0", "#f6f1e8"]] : [["#b9a0e0", "#f6f1e8"], ["#f2d27a", "#e98fa5"], ["#e98fa5", "#f2d27a"]];
     // 앞쪽(카메라 가까이)부터 뒤쪽까지 깊이별로
@@ -878,11 +976,13 @@ const PROP_SWAY = [];   // 바람에 흔들리는 트럭 좌우 수풀(이삭 �
   greenBush(1.5, 0.5, -2.35, 0.9); flowerBush(1.3, -2.0, 0.7, ["#f2d27a", "#f6f1e8"], 0.5); greenBush(-1.55, 0.55, -2.55, 0.95); flowerBush(-1.3, -2.15, 0.7, ["#e98fa5", "#f6f1e8"], 0.55);
   // 왼쪽 뒤 바위 무더기(오른쪽과 짝)
   for (const [x, z, r, sd, ry] of [[-1.25, -0.9, 0.5, 17, 0.7], [-1.65, -1.7, 0.42, 19, 1.9]]) put(rockGeo(r, sd), rockM[sd % 3], x, r * 0.35, z, ry);
+  mergeStatic(prop);   // 바위·들꽃처럼 제자리에 있는 것들을 합친다
 }
 
 // 여자 인물(woman.js, 배경과 같은 셀 처리): 펼친 뒷문 끝에 걸터앉음. 화면 가운데에서 살짝 왼쪽
 const woman = buildWoman({ THREE, mat, RoundedBoxGeometry });
 woman.group.position.set(-0.2, 0.545 * TS + 0.035, 2.52 * TS - 0.3);   // 뒷문 윗면·끝(트럭 크기에 맞춤)
+mergeUnmoving(woman.group, woman.update, [0.73, 1.91]);
 truckScene.add(woman.group);
 // 남자 인물(man.js, 사진): 짐칸 앞 짐 더미 위에 걸터앉아 다리를 꼼. 한 발은 짐칸 바닥을 딛음
 const man = buildMan({ THREE, mat, RoundedBoxGeometry });
@@ -908,6 +1008,7 @@ let cargoTop = 0;
   cargoTop = cH + tH + gH;
 }
 man.group.position.set(CARGO_X, BED_Y + cargoTop + 0.005, CARGO_Z - 0.03); man.group.rotation.set(-0.12, 0, 0); man.group.scale.setScalar(1.3);   // 짐 더미 위에 걸터앉아 운전석 뒷벽 쪽으로 살짝 기댐   // 찬혁은 1.3배(의도적인 원근 정리)
+mergeUnmoving(man.group, man.update, [0.73, 1.91]);
 truckScene.add(man.group);
 
 // 하늘 비중 줄이기: 원근은 그대로 두고 아래쪽까지 더 보이게 화면을 아래로 옮김(바위·길을 사진 자리에 놓은 뒤에 적용)
@@ -1146,7 +1247,7 @@ function tick() {
   renderer.setRenderTarget(rtBg); renderer.render(scene, camera);
   renderer.setClearColor(0x000000, 0); renderer.setRenderTarget(rtFg); renderer.clear(); renderer.render(truckScene, truckCam);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
-  window.__ready = true;
+  if (!window.__ready) { window.__ready = true; if (parent !== window) parent.postMessage({ type: "ready" }, location.origin); }
   requestAnimationFrame(tick);
 }
 window.__s = { FLIGHT, DAY, clock, camera, truckCam, TILT, TILT_PIV, rock, THREE, scene, ROAD_PTS, ROAD2_PTS, rawHeight, truck };
