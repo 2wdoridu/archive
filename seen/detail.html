@@ -236,7 +236,7 @@ if (ornate) {
   new ResizeObserver(redraw).observe(fr); redraw();
 }
 if (scene) {
-  const card = scene.parentElement;
+  const card = scene.closest(".detail__frame");
   const send = (x, y, k = 1) => scene.contentWindow.postMessage({ type: "tilt", x, y, k }, location.origin);
   const clamp = v => Math.max(-1, Math.min(1, v));
   let box = card.getBoundingClientRect();
