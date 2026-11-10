@@ -11,7 +11,7 @@
   --bar-h: 64px; /* 상단 바 높이. 패널 고정 위치와 상단 바 이름 표시 시점도 이 값을 따른다 */
   --detail-side: 12.5vw; /* 1920px 화면에서 240px, 화면 폭에 비례 */
   --mono: "IBM Plex Mono", "Nanum Gothic Coding", ui-monospace, monospace;
-  --sans: "Archivo", "Pretendard", "Helvetica Neue", Arial, sans-serif;
+  --sans: "Archivo", "Pretendard Variable", "Pretendard", "Helvetica Neue", Arial, sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
