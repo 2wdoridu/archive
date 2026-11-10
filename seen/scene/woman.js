@@ -473,7 +473,7 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
         const t = i / n, y = sy - t * len, d = t * len, cw = Math.min(1, t * 25), amp = (0.006 + 0.003 * t) * cw, ca = d * 160 + ph;
         const ease = 0.5 - 0.5 * Math.cos(Math.min(1, t * 1.6) * Math.PI);   // 두피에서 바깥으로 천천히 벌어짐(꺾이지 않게). 옆머리는 얼굴 높이에서 이미 옆으로 부풀고 아래로 더 퍼짐
         const pk = s > 0 && zp > -0.01 ? 0.3 : 1;   // 손을 올린 쪽 앞머리칼은 손 뒤로 지나가게 덜 부풂
-        let x = sx + s * (pk * (0.016 * Math.min(1, t * 3) + 0.072 * THREE.MathUtils.smoothstep(t, 0.12, 0.5)) + 0.045 * t * t), z = sz - 0.03 * t;   // 사진: 관자놀이는 붙고 턱~어깨 높이에서 가장 넓음   // 관자놀이 아래부터 옆으로 볼록하게 부풂   // 아래로 갈수록 조금씩 퍼짐
+        let x = sx + s * (pk * (0.016 * Math.min(1, t * 3) + 0.060 * THREE.MathUtils.smoothstep(t, 0.12, 0.5)) + 0.032 * t * t), z = sz - 0.03 * t;   // 사진: 관자놀이는 붙고 턱~어깨 높이에서 가장 넓음   // 관자놀이 아래부터 옆으로 볼록하게 부풂   // 아래로 갈수록 조금씩 퍼짐
         if (y < -0.12 && !front) z = Math.min(z, -0.09 - 0.02 * t);   // 어깨 아래로는 등 뒤로
         if (front) { z = sz + 0.014 * Math.sin(Math.min(1, t * 2.2) * Math.PI * 0.5) - 0.004 * k * t; x = sx + s * (0.014 + pk * (0.012 * Math.min(1, t * 3) + 0.05 * THREE.MathUtils.smoothstep(t, 0.15, 0.55)) + 0.006 * t + 0.006 * (k % 3) * t); }   // 얼굴 옆선 바깥으로   // 얼굴 옆선 바깥으로 비켜 어깨 앞으로
         pts.push(V(x, y, z));
@@ -482,18 +482,44 @@ export function buildWoman({ THREE, mat, RoundedBoxGeometry }) {
       const wf = tt => { const T = Math.max(0, (tt - t0) / (1 - t0)), d = T * len; return (0.008 + 0.005 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
       { const m = add(card(pts, front ? 0.016 : (s > 0 && zp > -0.02 ? 0.032 : 0.05), 120, 1, 0.12, wf, 1, (front ? 1.05 : 0.9 + 0.16 * hsh(k + s * 7)) * (zp < -0.04 ? 0.85 : 1) * (s > 0 ? 1.25 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head); m.castShadow = false; if (zp > -0.03) m.receiveShadow = false; locks.push(m); }   // 정수리에 겹친 판끼리 검은 그림자 조각이 생기지 않게
     }
+    // 어깨 앞으로 넘어와 상체를 덮는 가닥(사진: 마이크 든 쪽에 여러 가닥, 손 올린 쪽은 짧게).
+    // 끝 자리는 충돌 처리가 몸 바깥으로 밀어 줘서 가슴 면을 타고 흐른다
+    for (const s of [-1, 1]) {
+      const cnt = s < 0 ? 5 : 2;
+      for (let k = 0; k < cnt; k++) {
+        const zp = 0.05 - k * 0.013, ph = k * 0.9 + (s > 0 ? 1.7 : 0.3);
+        const g = Math.sqrt(Math.max(0.1, 1 - (zp / (zp > 0 ? VOL.zf : VOL.zb)) ** 2));
+        const pts = [], a0 = Math.PI * 0.26, a1 = Math.PI * 0.44;
+        for (let i = 0; i <= 4; i++) { const a = a0 + i / 4 * (a1 - a0);
+          pts.push(V(s * (0.007 + Math.sin(a) * (VOL.x * g + 0.002)), 0.012 + Math.cos(a) * (VOL.y * g + 0.002), zp)); }
+        const len = (s < 0 ? 0.30 : 0.22) + (k % 3) * 0.03, n = 16;
+        const sx = pts[4].x, sy = pts[4].y, sz = pts[4].z;
+        for (let i = 1; i <= n; i++) {
+          const t = i / n, y = sy - t * len;
+          const over = THREE.MathUtils.smoothstep(t, 0.18, 0.6);   // 어깨 높이에서 앞으로 넘어옴
+          const x = sx * (1 - 0.42 * over) + s * (0.004 + 0.004 * (k % 2));   // 어깨를 넘으며 몸 쪽으로 모임
+          const z = sz + 0.015 + 0.03 * over;   // 앞으로 넘어온 뒤는 충돌 처리가 가슴 면에 얹어 준다
+          pts.push(V(x, y, z));
+        }
+        let arcL = 0; for (let i = 1; i <= 4; i++) arcL += pts[i].distanceTo(pts[i - 1]);
+        const t0 = arcL / (arcL + len);
+        const wf = tt => { const T = Math.max(0, (tt - t0) / (1 - t0)), d = T * len; return (0.006 + 0.004 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
+        const m = add(card(pts, 0.026, 120, 1, 0.12, wf, 1, 1.0 + 0.14 * hsh(k * 2.9 + s * 5), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head);
+        m.castShadow = false; m.receiveShadow = false; locks.push(m);
+      }
+    }
     // 뒤통수에서 등으로 흘러내리는 뒷머리(넓게 겹쳐 빈틈을 메움)
-    for (let k = 0; k < 26; k++) {
-      const u = (k - 12.5) / 12.5, a = Math.PI + u * 1.2, ph = k * 0.5 + 0.6 * Math.sin(k * 5.71);
-      const rx = Math.sin(a) * 0.092, rz = Math.cos(a) * 0.1;
+    for (let k = 0; k < 22; k++) {
+      const u = (k - 10.5) / 10.5, a = Math.PI + u * 1.1, ph = k * 0.5 + 0.6 * Math.sin(k * 5.71);
+      const rx = Math.sin(a) * 0.078, rz = Math.cos(a) * 0.094;
       const pts = [V(rx * 0.5, 0.07, rz * 0.6), V(rx, 0.01, rz)];
       const len = 0.36 + ((k * 3) % 4) * 0.025;
-      for (let i = 1; i <= 14; i++) { const t = i / 14, d = t * len; pts.push(V(rx * (1 + 0.5 * t + 0.8 * t * t), 0.01 - d, Math.min(rz - 0.012 * t, -0.085) - 0.015 * t)); }
+      for (let i = 1; i <= 14; i++) { const t = i / 14, d = t * len; pts.push(V(rx * (1 + 0.3 * t + 0.38 * t * t), 0.01 - d, Math.min(rz - 0.012 * t, -0.085) - 0.012 * t)); }
       const wf = tt => { const T = Math.max(0, (tt - 0.12) / 0.88), d = T * len; return (0.008 + 0.005 * T) * Math.min(1, T * 8) * Math.cos(d * 70 + ph); };
-      locks.push(add(card(pts, 0.062, 120, 1, 0.1, wf, 1, (0.86 + 0.2 * hsh(k * 3.1)) * (u > 0.2 ? 1.15 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head));   // 안쪽 층: 어둡게
+      locks.push(add(card(pts, 0.056, 120, 1, 0.1, wf, 1, (0.86 + 0.2 * hsh(k * 3.1)) * (u > 0.2 ? 1.15 : 1), 3.5, 0.25), CARD[k % 3 === 1 ? 1 : 0], head));   // 안쪽 층: 어둡게
     }
     // 등 뒤 채움 판(다발 사이로 비어 보이지 않게)
-    { const bk = add(new THREE.CylinderGeometry(0.06, 0.15, 0.36, 28, 6, true, Math.PI * 0.72, Math.PI * 0.56), mat("#4a2c22", { side: THREE.DoubleSide }), head); bk.position.set(0, -0.2, -0.075); }
+    { const bk = add(new THREE.CylinderGeometry(0.055, 0.125, 0.36, 28, 6, true, Math.PI * 0.72, Math.PI * 0.56), mat("#4a2c22", { side: THREE.DoubleSide }), head); bk.position.set(0, -0.2, -0.075); }
     // 일자 시스루 앞머리: 이마선에서 이마 곡면을 따라 내려와 눈썹 위에서 끝남. 가닥 사이가 살짝 벌어져 이마가 비침
     const brow = (x, y) => 0.072 * Math.sqrt(Math.max(0.02, 1 - (x / 0.071) ** 2 - ((y - 0.012) / 0.09) ** 2));
     // 정수리 앞쪽: 가운데 가르마 한 점에서 사방으로 퍼져 내려가는 결(가운데는 앞으로, 양옆은 비스듬히 옆으로 흘러 옆머리로 이어짐)
