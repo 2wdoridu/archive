@@ -56,7 +56,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 ## 4. 수정하고 배포하는 방법
 
 1. 파일을 고치고 로컬 서버로 확인한다. PC는 1920px과 1536px(1920 모니터 + Windows 배율 125%), 휴대폰은 390px로 확인한다.
-2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261110-1`.
+2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261110-2`.
 3. 커밋하고 `git push` 한다.
 4. 1~2분 뒤 공개 주소에 반영된다. 브라우저가 예전 파일을 보여 주면 Ctrl+F5.
 
@@ -189,6 +189,8 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 - **Pretendard 주소**: 쓰던 `gh/orioncactus/…/static/pretendard.min.css` 는 글꼴 파일 경로가 전부 404 라, Pretendard 가 깔려 있지 않은 기기에서는 글꼴이 안 받아졌다. 같은 버전의 `npm/pretendard@1.3.9/…/variable/pretendardvariable-dynamic-subset.min.css`(글자별로 쪼개 받는 판)으로 바꿨다. 통짜 파일은 굵기당 780KB(정적)·2.06MB(변수)라 쓸 수 없다. 글꼴 이름이 `Pretendard Variable` 이라 `--sans` 와 `bread`·`card` 의 글꼴 이름도 같이 고쳤다. 캔버스 글자는 화면 글자와 달리 글꼴을 저절로 받아오지 않으므로 `bread` 에 `ensureFont` 를 두었다.
 
 휴대폰 390px·CPU 4배 감속 기준: 프레임당 메인 스레드 작업 31.4ms → 20.5ms, 느린 4G 에서 카드에 그림이 뜨는 시각 5,973ms → 1,540ms.
+
+**크게 보기(2026-11-10)**: 상세 카드 아래 동그라미 둘 중 왼쪽. 누르면 `body.is-zoom` 이 붙어 테두리 장식과 종이 판을 숨기고 장면을 화면에 맞춰 키운다. 장면이 3:4 로 그려지므로 비율은 그대로 두고 남는 곳은 어둡게 둔다. 다시 누르거나 Escape 로 돌아온다. 크게 본 동안에는 상단 바가 가려지므로 단추를 5초 뒤에 숨기지 않는다. 장면(`paradise.html`)은 창 크기가 바뀌면 그 크기에 맞춰 다시 그린다(먹선 굵기 `texel` 은 화면 크기와 무관하게 정해져 있어 건드리지 않는다).
 
 **해 보고 되돌린 것**
 - 그림자 지도를 두 프레임에 한 번만 갱신: 0.4ms 밖에 못 줄이면서 인물 옷과 짐칸 음영이 달라졌다. 이때 알게 된 것 — `shadowMap.autoUpdate` 를 끄지 않으면 `light.shadow.needsUpdate` 는 아무 일도 하지 않는다. 장면마다 `renderer.shadowMap.needsUpdate` 를 따로 켜 줘야 한다.

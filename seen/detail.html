@@ -9,7 +9,7 @@
 <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
-<script src="data.js?v=20261110-1"></script>
+<script src="data.js?v=20261110-2"></script>
 <script>
   // 이 기록의 첫 화면 그림을 가장 먼저 받기 시작한다(3D 장면이 뜨기 전에 보여 줄 그림)
   { const q = new URLSearchParams(location.search).get("id");
@@ -20,7 +20,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&family=Nanum+Gothic+Coding&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="../style.css?v=20261110-1">
+<link rel="stylesheet" href="../style.css?v=20261110-2">
 <style>
   .detail__media img { aspect-ratio: 3 / 4; object-fit: cover; }
   /* 3D 장면 항목: 화면 높이에 맞춘 3:4 틀에 장면을 띄움 */
@@ -57,31 +57,43 @@
   .detail__stage { position: relative; z-index: 1; display: block; width: 100%; }
   .detail__poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
   /* 뒷면: 콘서트 티켓 */
-  .card__back { display: none; position: absolute; z-index: 1; inset: var(--pad); overflow: hidden; }
+  .card__back { display: none; position: absolute; z-index: 1; inset: 0; overflow: hidden; }
   .card__back svg { display: block; width: 100%; height: 100%; }
   .detail__frame.is-back .detail__scene { visibility: hidden; }
   .detail__frame.is-back .card__back { display: block; }
-  /* 뒤집기 버튼: 카드 아래 가운데 동그라미. 앞면에서 5초 동안 아무 동작이 없으면 아래로 내려가며 사라진다 */
-  .card__flip {
-    position: absolute; z-index: 10; left: 50%; bottom: 26px; width: 32px; height: 32px; padding: 0;
+  /* 카드 아래 가운데 동그라미 둘: 크게 보기, 뒤집기. 앞면에서 5초 동안 아무 동작이 없으면 아래로 내려가며 사라진다 */
+  .card__flip, .card__zoom {
+    position: absolute; z-index: 10; bottom: 26px; width: 32px; height: 32px; padding: 0;
     display: grid; place-items: center; border-radius: 50%; cursor: pointer; color: rgb(90 66 34 / .75);
     background: rgb(243 234 214 / .45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     border: 1px solid rgb(199 154 79 / .45); box-shadow: 0 2px 6px -2px rgb(60 40 30 / .25);
     opacity: .8; transform: translateX(-50%); transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s;
   }
-  .card__flip svg { width: 15px; height: 15px; }
-  .card__flip:hover, .card__flip:focus-visible { opacity: 1; }
-  .card__flip:active { transform: translateX(-50%) scale(.92); }
-  .card__flip.is-away { transform: translate(-50%, 36px); opacity: 0; pointer-events: none; }
+  .card__zoom { left: calc(50% - 22px); }
+  .card__flip { left: calc(50% + 22px); }
+  .card__flip svg, .card__zoom svg { width: 15px; height: 15px; }
+  .card__flip:hover, .card__flip:focus-visible, .card__zoom:hover, .card__zoom:focus-visible { opacity: 1; }
+  .card__flip:active, .card__zoom:active { transform: translateX(-50%) scale(.92); }
+  .card__flip.is-away, .card__zoom.is-away { transform: translate(-50%, 36px); opacity: 0; pointer-events: none; }
   /* 휴대폰: 장면 위에 겹치는 섞기·흐림 효과는 매 장면마다 다시 계산돼 느려지므로 보통 겹침으로 바꾼다 */
   @media (pointer: coarse) {
     .detail__frame:has(.detail__scene)::after { mix-blend-mode: normal; opacity: calc(.12 + var(--on) * .18); }
-    .card__flip { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgb(243 234 214 / .62); }
+    .card__flip, .card__zoom { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgb(243 234 214 / .62); }
   }
   /* 애플식 연속 곡률(스쿼클)을 지원하는 브라우저: 같은 크기여도 모서리가 작아 보여 값을 키운다 */
   @supports (corner-shape: squircle) {
     .detail__frame:has(.detail__scene) { border-radius: 64px; corner-shape: squircle; }
   }
+  /* 크게 보기: 테두리 장식을 숨기고 장면을 화면에 맞춰 키운다. 장면이 3:4 로 그려지므로 비율은 그대로 두고 남는 곳은 어둡게 둔다 */
+  body.is-zoom { overflow: hidden; }
+  body.is-zoom .detail__media { position: fixed; inset: 0; z-index: 50; margin: 0; background: #14110e; display: grid; place-items: center; }
+  body.is-zoom .detail__frame:has(.detail__scene) {
+    --pad: 0px; width: min(100vw, 75vh); max-width: none;
+    border-radius: 0; corner-shape: normal; background: none; box-shadow: none;
+  }
+  body.is-zoom .detail__frame:has(.detail__scene)::after { display: none; }
+  body.is-zoom .card__ornate { display: none; }
+  body.is-zoom .card__flip, body.is-zoom .card__zoom { color: rgb(60 44 24 / .8); }
 </style>
 </head>
 <body>
@@ -138,8 +150,11 @@ function ticketSVG(s) {
   <rect x="0" y="388" width="300" height="12" fill="url(#tsky)"/>
 </svg>`;
 }
+function cardBack(s) {
+  return `<div class="card__back" aria-hidden="true">${ticketSVG(s)}</div>`;
+}
 function cardDeco(s) {
-  return `<svg class="card__ornate" aria-hidden="true"></svg><div class="card__back" aria-hidden="true">${ticketSVG(s)}</div>`;
+  return `<svg class="card__ornate" aria-hidden="true"></svg>`;
 }
 // 카드 실제 크기(px)로 장식을 그린다. u: 폭 340px 기준 배율
 function drawOrnate(svg, W, H, p) {
@@ -205,9 +220,12 @@ function drawOrnate(svg, W, H, p) {
 }
 const FLIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 14-4.5"/><path d="M18 3v4h-4"/><path d="M20 13a8 8 0 0 1-14 4.5"/><path d="M6 21v-4h4"/></svg>`;
 const FLIP_BTN = `<button type="button" class="card__flip" aria-label="뒷면 보기" aria-pressed="false">${FLIP_ICON}</button>`;
+const ZOOM_IN_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H4v5"/><path d="M15 4h5v5"/><path d="M15 20h5v-5"/><path d="M9 20H4v-5"/></svg>`;
+const ZOOM_OUT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h5V4"/><path d="M20 9h-5V4"/><path d="M20 15h-5v5"/><path d="M4 15h5v5"/></svg>`;
+const ZOOM_BTN = `<button type="button" class="card__zoom" aria-label="크게 보기" aria-pressed="false">${ZOOM_IN_ICON}</button>`;
 
 document.getElementById("post").innerHTML = `
-  <div class="detail__media"><div class="detail__frame">${s.scene ? `<div class="detail__stage"><iframe class="detail__scene" ${s.poster ? "data-src" : "src"}="${s.scene}?embed&zoom=0.9&down=0.08&v=20261110-1" title="${s.title}"></iframe>${s.poster ? `<img class="detail__poster" src="${s.poster}" alt="" aria-hidden="true" decoding="async" fetchpriority="high">` : ""}</div>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? FLIP_BTN : ""}</div>
+  <div class="detail__media"><div class="detail__frame">${s.scene ? `<div class="detail__stage"><iframe class="detail__scene" ${s.poster ? "data-src" : "src"}="${s.scene}?embed&zoom=0.9&down=0.08&v=20261110-2" title="${s.title}"></iframe>${s.poster ? `<img class="detail__poster" src="${s.poster}" alt="" aria-hidden="true" decoding="async" fetchpriority="high">` : ""}${cardBack(s)}</div>${cardDeco(s)}` : `<img src="${s.img}" alt="${s.title}">`}</div>${s.scene ? ZOOM_BTN + FLIP_BTN : ""}</div>
   <div class="detail__side info">
     <h1 class="detail__title">${s.title}</h1>
     <p class="info__line">${[s.kind, s.by, s.place].filter(Boolean).join(" · ")}</p>
@@ -228,6 +246,20 @@ document.getElementById("post").innerHTML = `
 }
 
 // 마우스 위치(틀 가운데 기준 -1~1)를 장면에 보내 보는 각도를 바꾼다. 카드 위에 있으면 카드도 그쪽으로 기운다
+// 크게 보기: 테두리를 숨기고 장면을 화면 크기에 맞춘다. 장면은 창 크기가 바뀌면 그 크기로 다시 그린다
+const zoomBtn = document.querySelector(".card__zoom");
+const isZoom = () => document.body.classList.contains("is-zoom");
+let wakeButtons = () => {};
+function setZoom(on) {
+  if (!zoomBtn) return;
+  document.body.classList.toggle("is-zoom", on);
+  zoomBtn.setAttribute("aria-pressed", String(on));
+  zoomBtn.setAttribute("aria-label", on ? "작게 보기" : "크게 보기");
+  zoomBtn.innerHTML = on ? ZOOM_OUT_ICON : ZOOM_IN_ICON;
+  wakeButtons();
+}
+if (zoomBtn) zoomBtn.addEventListener("click", () => setZoom(!isZoom()));
+
 const scene = document.querySelector(".detail__scene");
 const ornate = document.querySelector(".card__ornate");
 if (ornate) {
@@ -261,10 +293,12 @@ if (scene) {
   // 뒤집기: 90도까지 돌린 순간 앞뒤를 바꾸고 나머지 90도를 마저 돈다
   const btn = document.querySelector(".card__flip");
   let back = false, flipping = false, idle;
+  const both = [btn, zoomBtn].filter(Boolean);
   const wake = () => {
-    btn.classList.remove("is-away"); clearTimeout(idle);
-    if (!back) idle = setTimeout(() => btn.classList.add("is-away"), 5000);
+    both.forEach(b => b.classList.remove("is-away")); clearTimeout(idle);
+    if (!back && !isZoom()) idle = setTimeout(() => both.forEach(b => b.classList.add("is-away")), 5000);
   };
+  wakeButtons = wake;
   btn.addEventListener("click", () => {
     if (flipping) return; flipping = true; card.classList.add("is-flipping");
     const dir = back ? -1 : 1, t0 = performance.now(), D = 800; let swapped = false;
@@ -292,7 +326,7 @@ document.querySelector(".detail__close").addEventListener("click", () => {
   else location.href = "index.html";
 });
 addEventListener("keydown", e => {
-  if (e.key === "Escape") document.querySelector(".detail__close").click();
+  if (e.key === "Escape") { if (isZoom()) setZoom(false); else document.querySelector(".detail__close").click(); }
   if (e.key === "ArrowLeft" && prev) location.replace(`detail.html?id=${prev.id}`);
   if (e.key === "ArrowRight" && next) location.replace(`detail.html?id=${next.id}`);
 });
