@@ -56,7 +56,7 @@ git config user.email "40047261+2wdoridu@users.noreply.github.com"
 ## 4. 수정하고 배포하는 방법
 
 1. 파일을 고치고 로컬 서버로 확인한다. PC는 1920px과 1536px(1920 모니터 + Windows 배율 125%), 휴대폰은 390px로 확인한다.
-2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261110-2`.
+2. `index.html`, `detail.html`, `info.html`, `analysis-sample.html`에서 CSS·JS를 부르는 주소의 버전 표시(`?v=날짜-번호`)를 올린다. 현재 값은 `20261110-3`.
 3. 커밋하고 `git push` 한다.
 4. 1~2분 뒤 공개 주소에 반영된다. 브라우저가 예전 파일을 보여 주면 Ctrl+F5.
 

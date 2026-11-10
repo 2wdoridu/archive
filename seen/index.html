@@ -13,15 +13,20 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500&family=Nanum+Gothic+Coding&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="../style.css?v=20261110-2">
+<link rel="stylesheet" href="../style.css?v=20261110-3">
 <style>
   .seen { padding: 24px var(--side) 80px; }
   .seen__title { font-family: var(--sans); font-stretch: 62%; font-weight: 800; font-size: 28px; margin-bottom: 16px; }
   /* 비율이 모두 3:4로 같아서 벽돌형 대신 행을 맞춘 격자로 둔다 */
   .seen__grid { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
   .seen__grid .tile img { aspect-ratio: 3 / 4; object-fit: cover; }
-  /* 3D 장면 항목: 칸 안에 장면을 그대로 띄움(누르면 상세로 가도록 장면은 클릭을 받지 않음) */
-  .tile__scene { display: block; width: 100%; aspect-ratio: 3 / 4; border: 0; pointer-events: none; }
+  /* 목록 칸은 카드 뒷면 티켓으로 보여 준다. 3D 장면은 상세에서만 돌린다 */
+  .tile__ticket { display: block; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; }
+  .tile__ticket svg { display: block; width: 100%; height: 100%; }
+  .seen__grid .tile { border-radius: 24px; }
+  @supports (corner-shape: squircle) {
+    .seen__grid .tile { border-radius: 38px; corner-shape: squircle; }
+  }
   @media (max-width: 1023px) { .seen__grid { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 760px) {
     .seen { padding-top: 12px; }
@@ -43,11 +48,12 @@
   <ul class="seen__grid" id="grid"></ul>
 </main>
 
-<script src="data.js?v=20261110-2"></script>
+<script src="data.js?v=20261110-3"></script>
+<script src="ticket.js?v=20261110-3"></script>
 <script>
 document.getElementById("grid").innerHTML = SEEN.map(s => `
   <li><a class="tile" href="detail.html?id=${s.id}">
-    ${s.scene ? `<iframe class="tile__scene" src="${s.scene}?embed" title="${s.title}" loading="lazy" tabindex="-1"></iframe>` : `<img src="${s.img}" alt="${s.title}" loading="lazy">`}
+    ${s.scene ? `<div class="tile__ticket" aria-hidden="true">${ticketSVG(s)}</div>` : `<img src="${s.img}" alt="${s.title}" loading="lazy">`}
     <span class="tile__cap">${s.title}, ${s.date}</span>
   </a></li>`).join("");
 </script>
